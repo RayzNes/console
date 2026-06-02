@@ -6,7 +6,7 @@ class CustomChipProject:
     """Проект разработки собственного чипа (CPU или GPU) в R&D"""
     def __init__(self, name: str, category: str, power: float, cost: float, rd_cost: float, dev_months: int):
         self.name = name
-        self.category = category  # "cpu" / "gpu"
+        self.category = category
         self.power = power
         self.cost = cost
         self.rd_cost = rd_cost
@@ -14,13 +14,11 @@ class CustomChipProject:
         self.progress = 0.0
 
     def advance(self, engineer_points: float):
-        # 10 очков за месяц разработки
-        points_needed = max(10, self.dev_months * 10)
         self.progress += engineer_points
 
 
 class FirstPartyGameProject:
-    """Проект собственной игры во время R&D консоли [2]"""
+    """Проект собственной игры во время R&D консоли"""
     def __init__(self, name: str, cost: float, dev_months: int):
         self.name = name
         self.cost = cost
@@ -28,17 +26,16 @@ class FirstPartyGameProject:
         self.progress = 0.0
 
     def advance(self, engineer_points: float):
-        points_needed = max(10, self.dev_months * 10)
         self.progress += engineer_points
 
 
 class PortingProject:
-    """Проект портирования сторонней игры на конкретную консоль [2]"""
+    """Проект портирования сторонней игры на конкретную консоль"""
     def __init__(self, game, console, double_cost: bool):
         self.game = game
         self.console = console
         self.double_cost = double_cost
-        self.months_left = 2  # Стандартное время портирования - 2 месяца
+        self.months_left = 2
 
 
 class BrandReputation:
@@ -66,7 +63,6 @@ class ConsoleProject:
         self.media = media
         self.margin = margin
 
-        # Добавочная стоимость за дисковод
         floppy_overhead = 80.0 if "Floppy" in media["name"] else 0.0
         self.unit_cost = cpu["cost"] + gpu["cost"] + media["cost"] + floppy_overhead
         self.retail_price = int(self.unit_cost * margin)
@@ -76,16 +72,13 @@ class ConsoleProject:
         self.progress = 0.0
         self.quality = 0.50
         self.phase_thresholds = {
-            "design": 30.0,  # 30% - переход к прототипу
-            "prototype": 70.0,  # 70% - переход к тестированию
-            "testing": 100.0  # 100% - готово
+            "design": 30.0,
+            "prototype": 70.0,
+            "testing": 100.0
         }
 
     def advance_development(self, engineer_points: float):
-        """Продвижение разработки консоли"""
-        self.progress += engineer_points * 0.5  # Скорость прогресса
-
-        # Обновление фазы в зависимости от прогресса
+        self.progress += engineer_points * 0.5
         if self.phase == "design" and self.progress >= self.phase_thresholds["design"]:
             self.phase = "prototype"
             self.quality = 0.65
@@ -95,8 +88,6 @@ class ConsoleProject:
         elif self.phase == "testing" and self.progress >= self.phase_thresholds["testing"]:
             self.phase = "ready"
             self.quality = 0.95
-
-        # Ограничиваем прогресс 100%
         self.progress = min(100.0, self.progress)
 
 
@@ -117,22 +108,22 @@ class PlayerCompany:
         self.bankruptcy_months = 0
         self.reputation = BrandReputation()
 
-        # Новые очереди проектов
-        self.active_chip_project = None      # Проект R&D CPU/GPU
-        self.active_game_projects = []       # Проекты 1st party игр во время разработки консоли [2]
-        self.active_ports = []               # Текущие сторонние порты [2]
-        self.licensed_games = []             # Полностью готовые портированные сторонние игры
+        # Режим ручного ввода клавиатуры для кастомизации названий
+        self.naming_mode = None  # None, "chip", "console"
+        self.input_buffer = ""
 
-        # Лицензированные чипы сторонних производителей
+        self.active_chip_project = None
+        self.active_game_projects = []
+        self.active_ports = []
+        self.licensed_games = []
+
         self.licensed_cpus = []
         self.licensed_gpus = []
 
-        # База кастомно разработанных чипов
         self.custom_cpus = []
         self.custom_gpus = []
 
         self.notifications = []
-
         self.tech_tree = TechTree()
         self.active_research = None
 

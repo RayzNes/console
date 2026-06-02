@@ -1,5 +1,6 @@
 # ai_competitor.py
 
+from config import HISTORICAL_CPUS, HISTORICAL_GPUS, HISTORICAL_MEDIA
 from console import Console
 
 
@@ -10,16 +11,16 @@ class AICompany:
         self.launch_year = launch_year
         self.color = color
         self.launched = False
+        self.active_console = None
 
-    def design_console(self, components_db: dict) -> Console:
-        cpus = [c for c in components_db["cpus"] if c["year"] <= self.launch_year]
-        gpus = [g for g in components_db["gpus"] if g["year"] <= self.launch_year]
-        media = [m for m in components_db["media"] if m["year"] <= self.launch_year]
+    def design_console(self, current_month: int) -> Console:
+        cpus = [c for c in HISTORICAL_CPUS if c["year"] <= self.launch_year]
+        gpus = [g for g in HISTORICAL_GPUS if g["year"] <= self.launch_year]
+        media = [m for m in HISTORICAL_MEDIA if m["year"] <= self.launch_year]
 
-        # Защита от пустых массивов
-        if not cpus: cpus = [components_db["cpus"][0]]
-        if not gpus: gpus = [components_db["gpus"][0]]
-        if not media: media = [components_db["media"][0]]
+        if not cpus: cpus = [HISTORICAL_CPUS[0]]
+        if not gpus: gpus = [HISTORICAL_GPUS[0]]
+        if not media: media = [HISTORICAL_MEDIA[0]]
 
         if self.strategy == "budget":
             cpu = min(cpus, key=lambda x: x["cost"])
@@ -38,7 +39,6 @@ class AICompany:
             start_games = 10
             quality = 0.85
         else:
-            # Безопасный выбор медианы без деления на ноль
             sorted_cpus = sorted(cpus, key=lambda x: x["power"])
             cpu = sorted_cpus[len(sorted_cpus) // 2] if sorted_cpus else cpus[0]
 
@@ -61,11 +61,12 @@ class AICompany:
             "cpu_name": cpu["name"],
             "gpu_name": gpu["name"],
             "media_name": med["name"],
-            "cost": unit_cost
+            "cost": unit_cost,
+            "is_programmable": med["is_programmable"]
         }
 
         self.launched = True
-        return Console(
+        console = Console(
             name=f"{self.name} System",
             launch_year=self.launch_year,
             price=retail_price,
@@ -76,3 +77,7 @@ class AICompany:
             color=self.color,
             spec_info=spec_info
         )
+        # Передаем реальный динамический месяц запуска [7]
+        console.launch_month = current_month
+        self.active_console = console
+        return console

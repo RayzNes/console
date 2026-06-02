@@ -38,7 +38,7 @@ btn_sub_res = pygame.Rect(45, 110, 180, 30)
 btn_sub_design = pygame.Rect(235, 110, 220, 30)
 btn_sub_console = pygame.Rect(465, 110, 180, 30)
 
-# Конструктор чипов (Designer) - Кнопки параметров разнесены, чтобы избежать наложений [1]
+# Конструктор чипов - разнесенные координаты
 btn_chip_type = pygame.Rect(45, 200, 250, 35)
 btn_chip_name = pygame.Rect(45, 250, 250, 35)
 btn_chip_core = pygame.Rect(45, 300, 250, 35)
@@ -50,17 +50,17 @@ btn_chip_build = pygame.Rect(45, 510, 250, 45)
 btn_chip_license_cpu = pygame.Rect(320, 200, 250, 35)
 btn_chip_license_gpu = pygame.Rect(320, 250, 250, 35)
 
-# Сборщик Консолей (Console R&D) - Исправлено перекрытие (Координаты разнесены на безопасные расстояния) [1]
+# Сборщик Консолей - Полная защита от наложений [1]
 btn_console_cpu = pygame.Rect(45, 200, 350, 35)
 btn_console_gpu = pygame.Rect(45, 250, 350, 35)
 btn_console_media = pygame.Rect(45, 300, 350, 35)
-btn_console_margin_dec = pygame.Rect(45, 350, 50, 35)
-btn_console_margin_inc = pygame.Rect(110, 350, 50, 35)
-btn_console_name = pygame.Rect(45, 400, 350, 35)
-btn_console_launch = pygame.Rect(45, 460, 350, 45)
 
-# Кнопка создания 1st party игр во время R&D консоли [2]
-btn_fp_game_create = pygame.Rect(45, 520, 350, 40)
+# Кнопки смещены вниз на y=390, чтобы освободить текстовую метку на y=350 [1]
+btn_console_margin_dec = pygame.Rect(45, 380, 50, 35)
+btn_console_margin_inc = pygame.Rect(110, 380, 50, 35)
+btn_console_name = pygame.Rect(45, 440, 350, 35)
+btn_console_launch = pygame.Rect(45, 500, 350, 45)
+btn_fp_game_create = pygame.Rect(45, 560, 350, 40)
 
 # Заказы логистики
 btn_order_10k = pygame.Rect(45, 500, 250, 40)
@@ -97,13 +97,14 @@ def draw_notifications(screen, player):
 
 
 def draw_chart(surface, x, y, w, h, market_history, consoles):
-    if not market_history:
-        draw_text(surface, "Нет данных для отображения", font_body, TEXT_MUTED, x + 10, y + 10)
-        return
-
+    """Исправлен вылет при пустой истории - рисует стартовую точку [4]"""
     chart_rect = pygame.Rect(x, y, w, h)
     pygame.draw.rect(surface, PANEL_COLOR, chart_rect)
     pygame.draw.rect(surface, BORDER_COLOR, chart_rect, 1)
+
+    if not market_history:
+        draw_text(surface, "Начало симуляции. Ожидание хода...", font_body, TEXT_MUTED, x + 20, y + 20)
+        return
 
     max_capacity = max(entry["capacity"] for entry in market_history) if market_history else 1
     max_sales = max(entry["total_sold"] for entry in market_history) if market_history else 1
@@ -115,18 +116,7 @@ def draw_chart(surface, x, y, w, h, market_history, consoles):
 
     colors = {}
     for console in consoles:
-        if console.is_player:
-            colors[console.name] = AMBER
-        elif "Atari" in console.name:
-            colors[console.name] = (230, 126, 34)
-        elif "Magnavox" in console.name:
-            colors[console.name] = (200, 200, 200)
-        elif "Mattel" in console.name:
-            colors[console.name] = (52, 152, 219)
-        elif "Coleco" in console.name:
-            colors[console.name] = (46, 204, 113)
-        else:
-            colors[console.name] = TEXT_MUTED
+        colors[console.name] = AMBER if console.is_player else TEXT_MUTED
 
     months_data = {}
     for i, entry in enumerate(market_history):
@@ -139,10 +129,16 @@ def draw_chart(surface, x, y, w, h, market_history, consoles):
 
     max_index = len(market_history) - 1
 
+    # Защита: Отрисовка одной точки при старте [4]
     if max_index == 0:
+        data = list(months_data.values())[0]
+        x_pos = graph_rect.x + graph_rect.width / 2
+        y_pos = graph_rect.bottom - (data["capacity"] / max_value) * graph_rect.height
+        pygame.draw.circle(surface, AMBER, (int(x_pos), int(y_pos)), 4)
+        draw_text(surface, f"Емкость: {data['capacity']:,}", font_body, TEXT_WHITE, int(x_pos) + 10, int(y_pos) - 10)
         return
 
-    # Емкость рынка (Серый пунктир)
+    # Пунктир емкости рынка
     prev_point = None
     for month_key, data in months_data.items():
         x_pos = graph_rect.x + (data["index"] / max_index) * graph_rect.width
@@ -152,7 +148,7 @@ def draw_chart(surface, x, y, w, h, market_history, consoles):
             draw_dashed_line(surface, prev_point, point, TEXT_MUTED, 2)
         prev_point = point
 
-    # Линии продаж консолей
+    # Продажи систем
     console_data = {}
     for console in consoles:
         console_data[console.name] = []
@@ -164,7 +160,7 @@ def draw_chart(surface, x, y, w, h, market_history, consoles):
             console_data[console_name].append(sales)
 
     for console_name, sales_list in console_data.items():
-        if not sales_list or console_name not in colors:
+        if not sales_list:
             continue
         color = colors.get(console_name, TEXT_MUTED)
         prev_point = None
@@ -177,15 +173,6 @@ def draw_chart(surface, x, y, w, h, market_history, consoles):
             prev_point = point
 
     draw_text(surface, "Продажи", font_body, TEXT_MUTED, x + 5, y + 10)
-    legend_x = x + 10
-    legend_y = y + h - 80
-    draw_text(surface, "Легенда:", font_body, TEXT_WHITE, legend_x, legend_y)
-    legend_y += 20
-    for console in consoles[:5]:
-        color = colors.get(console.name, TEXT_MUTED)
-        pygame.draw.rect(surface, color, (legend_x, legend_y, 12, 12))
-        draw_text(surface, console.name[:20], font_body, TEXT_WHITE, legend_x + 18, legend_y - 2)
-        legend_y += 18
 
 
 def draw_dashed_line(surface, start_pos, end_pos, color, width=1, dash_length=5):
@@ -267,11 +254,12 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
                   font_title, font_body, font_large, sub_tab,
                   active_designer_type, chip_name, designer_core_idx, designer_cache_idx, designer_process_idx,
                   designer_package_idx,
-                  active_chip_project, active_game_projects, console_name):
+                  active_chip_project, active_game_projects, console_name,
+                  licensing_selector_type, current_year):
     """Исправленный и расширенный R&D модуль без наложения текстов и кнопок"""
     draw_text(screen, "ОТДЕЛ ИССЛЕДОВАНИЙ И РАЗРАБОТОК (R&D)", font_title, AMBER, 30, 70)
 
-    # Вкладки R&D [2]
+    # Вкладки R&D
     draw_button(screen, btn_sub_res, "1. ИССЛЕДОВАНИЯ", font_body, AMBER if sub_tab == "research" else PANEL_COLOR,
                 BORDER_COLOR, TEXT_WHITE)
     draw_button(screen, btn_sub_design, "2. КОНСТРУКТОР ЧИПОВ", font_body,
@@ -295,13 +283,21 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
         pygame.draw.rect(screen, BORDER_COLOR, (30, 150, 750, 540), 1)
         draw_text(screen, "ДОСТУПНЫЕ ТЕХНОЛОГИИ ДЛЯ ИЗУЧЕНИЯ", font_title, TEXT_WHITE, 45, 165)
 
-        avail_nodes = player.tech_tree.get_available_research(1972)
+        # Передаем реальный динамический год вместо хардкода [1]
+        avail_nodes = player.tech_tree.get_available_research(current_year)
         offset_y = 205
+
         for i, node in enumerate(avail_nodes[:10]):
             btn_rect = pygame.Rect(45, offset_y, 500, 25)
             is_active = (player.active_research == node)
             bg = GREEN if is_active else PANEL_COLOR
             text_color = BG_COLOR if is_active else TEXT_WHITE
+
+            # Подсветка блокировки, если лаборатория занята [9]
+            if player.active_research and not is_active:
+                bg = (10, 12, 16)
+                text_color = (60, 65, 80)
+
             draw_button(screen, btn_rect, f"{node.name} | Cost: ${node.base_cost:,} | {node.base_months} мес.",
                         font_body, bg, BORDER_COLOR, text_color)
             offset_y += 30
@@ -330,19 +326,18 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
             pygame.draw.rect(screen, GREEN, (45, 270, int(500 * (percent / 100.0)), 25))
             draw_text(screen, f"Прогресс: {percent:.1f}%", font_body, TEXT_WHITE, 45, 310)
         else:
-            # Собрать собственный чип (Дорого и долго!) [3]
             draw_text(screen, "СОБСТВЕННЫЙ R&D ЧИПА (ДОРОГО И ДОЛГО)", font_title, AMBER, 45, 210)
 
+            # Отрисовка кнопок с выделением при вводе имени
             type_label = f"Тип чипа: {active_designer_type.upper()}"
             draw_button(screen, btn_chip_type, type_label, font_body, PANEL_COLOR, BORDER_COLOR, TEXT_WHITE)
 
-            name_label = f"Имя чипа: {chip_name}"
-            draw_button(screen, btn_chip_name, name_label, font_body, PANEL_COLOR, BORDER_COLOR, TEXT_WHITE)
+            border_color = AMBER if player.naming_mode == "chip" else BORDER_COLOR
+            name_label = f"Имя чипа: {chip_name}" if player.naming_mode != "chip" else f"Ввод: {player.input_buffer}_"
+            draw_button(screen, btn_chip_name, name_label, font_body, PANEL_COLOR, border_color, TEXT_WHITE)
 
-            # Вывод деталей сборки
             draw_text(screen, "Транзисторы и упаковка:", font_body, TEXT_MUTED, 45, 300)
 
-            # Рендер кнопок выбора под кастомный чип
             cores = [n for n in player.tech_tree.nodes.values() if n.category == active_designer_type and n.researched]
             processes = [n for n in player.tech_tree.nodes.values() if
                          n.category == "manufacturing" and "tech_" in n.node_id and n.researched]
@@ -362,7 +357,6 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
             pack_name = f"Корпус: {package.name}" if package else "Корпус: нет"
             draw_button(screen, btn_chip_package, pack_name, font_body, PANEL_COLOR, BORDER_COLOR, TEXT_WHITE)
 
-            # Расчет ТТХ перед отправкой в разработку
             if active_designer_type == "cpu":
                 caches = [n for n in player.tech_tree.nodes.values() if
                           n.category == "memory" and "l1_" in n.node_id and n.researched]
@@ -387,19 +381,48 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
             draw_text(screen, f"ТТХ: {p} HW | Себест: ${c} | R&D: ${rd_cost:,.0f} | Срок: {dev_months} мес.", font_body,
                       AMBER, 45, 490)
 
-            # Кнопка постройки собственного чипа (долго и дорого!)
             b_color = AMBER if player.cash >= rd_cost else RED
             draw_button(screen, btn_chip_build, "НАЧАТЬ РАЗРАБОТКУ ЧИПА (R&D)", font_body, PANEL_COLOR, b_color,
                         TEXT_WHITE)
 
-            # Выкуп лицензий на сторонние чипы [2]
-            draw_text(screen, "КУПИТЬ ГОТОВУЮ ЛИЦЕНЗИЮ (БЫСТРО И СРАЗУ)", font_title, GREEN, 320, 210)
+            # Выкуп лицензий на сторонние чипы (Перенос заголовка на y=170) [1]
+            draw_text(screen, "ЛИЦЕНЗИРОВАНИЕ СТОРОННИХ ЧИПОВ", font_title, GREEN, 350, 165)
             draw_button(screen, btn_chip_license_cpu, "Выбрать CPU для лицензии", font_body, PANEL_COLOR, BORDER_COLOR,
                         TEXT_WHITE)
             draw_button(screen, btn_chip_license_gpu, "Выбрать GPU для лицензии", font_body, PANEL_COLOR, BORDER_COLOR,
                         TEXT_WHITE)
 
-    # 3. СБОРКА СИСТЕМ (CONSOLE BUILDER) - Полностью перерисовано для устранения наложений! [1]
+            # Отрисовка списка выбора лицензий чипов справа [12]
+            if licensing_selector_type:
+                from config import HISTORICAL_CPUS, HISTORICAL_GPUS
+                list_chips = HISTORICAL_CPUS if licensing_selector_type == "cpu" else HISTORICAL_GPUS
+                avail_lic = [c for c in list_chips if c["year"] <= current_year]
+
+                pygame.draw.rect(screen, PANEL_COLOR, (650, 250, 544, 440))
+                pygame.draw.rect(screen, BORDER_COLOR, (650, 250, 544, 440), 1)
+                draw_text(screen, f"ДОСТУПНЫЕ {licensing_selector_type.upper()} ДЛЯ ЛИЦЕНЗИРОВАНИЯ:", font_title, AMBER,
+                          665, 270)
+
+                lic_offset_y = 310
+                for item in avail_lic[:4]:
+                    draw_text(screen, f"{item['name']} ({item['power']} HW)", font_body, TEXT_WHITE, 665, lic_offset_y)
+                    draw_text(screen, f"Цена: ${item['license_fee']:,} | Unit: ${item['cost']}", font_body, TEXT_MUTED,
+                              665, lic_offset_y + 15)
+
+                    # Кнопка Купить
+                    buy_rect = pygame.Rect(1020, lic_offset_y, 150, 30)
+                    already_bought = item["name"] in [x["name"] for x in (
+                        player.licensed_cpus if licensing_selector_type == "cpu" else player.licensed_gpus)]
+
+                    if already_bought:
+                        draw_button(screen, buy_rect, "КУПЛЕНО", font_body, GREEN, GREEN, BG_COLOR)
+                    else:
+                        b_col = GREEN if player.cash >= item["license_fee"] else RED
+                        draw_button(screen, buy_rect, "ЛИЦЕНЗИРОВАТЬ", font_body, PANEL_COLOR, b_col, TEXT_WHITE)
+
+                    lic_offset_y += 50
+
+    # 3. СБОРКА СИСТЕМ (CONSOLE BUILDER) - Исправлены наложения, цена полностью видна [1]
     elif sub_tab == "console":
         pygame.draw.rect(screen, PANEL_COLOR, (30, 150, 750, 540))
         pygame.draw.rect(screen, BORDER_COLOR, (30, 150, 750, 540), 1)
@@ -407,7 +430,6 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
         if not player.active_project:
             draw_text(screen, "СБОРКА КОНСОЛИ ИЗ ДОСТУПНОЙ БАЗЫ ЧИПОВ", font_large, AMBER, 45, 165)
 
-            # Доступный стек чипов (кастомные + купленные по лицензии) [2]
             all_cpus = player.custom_cpus + player.licensed_cpus
             all_gpus = player.custom_gpus + player.licensed_gpus
             all_media = components_db["media"]
@@ -421,15 +443,13 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
                 gpu = all_gpus[sel_gpu % len(all_gpus)]
                 med = all_media[sel_media % len(all_media)]
 
-                # Носители данных [1]
                 unit_cost = cpu["cost"] + gpu["cost"] + med["cost"]
                 if "Floppy" in med["name"]:
-                    unit_cost += 80.0  # Учет дисковода
+                    unit_cost += 80.0
 
                 retail_p = int(unit_cost * margin)
                 power = cpu["power"] + gpu["power"]
 
-                # Кнопки с безопасными шагами координат y-оси [1]
                 draw_button(screen, btn_console_cpu, f"Процессор: {cpu['name']} ({cpu['power']} HW | ${cpu['cost']})",
                             font_body, PANEL_COLOR, BORDER_COLOR, TEXT_WHITE)
                 draw_button(screen, btn_console_gpu, f"Видеочип: {gpu['name']} ({gpu['power']} HW | ${gpu['cost']})",
@@ -437,21 +457,22 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
                 draw_button(screen, btn_console_media, f"Носитель: {med['name']} (${med['cost']})", font_body,
                             PANEL_COLOR, BORDER_COLOR, TEXT_WHITE)
 
-                draw_text(screen, f"Наценка: {margin:.1f}x (Розничная цена: ${retail_p})", font_body, TEXT_WHITE, 45,
-                          360)
+                # Текстовая метка на y=350 полностью разнесена с кнопками на y=380 [1]
+                draw_text(screen, f"Текущая Наценка: {margin:.1f}x  |  Розничная цена: ${retail_p}", font_body,
+                          TEXT_WHITE, 45, 350)
                 draw_button(screen, btn_console_margin_dec, "-", font_title, PANEL_COLOR, BORDER_COLOR, RED)
                 draw_button(screen, btn_console_margin_inc, "+", font_title, PANEL_COLOR, BORDER_COLOR, GREEN)
 
                 # Выбор имени консоли
-                draw_button(screen, btn_console_name, f"Имя консоли: {console_name}", font_body, PANEL_COLOR, AMBER,
-                            TEXT_WHITE)
+                border_color = AMBER if player.naming_mode == "console" else BORDER_COLOR
+                name_label = f"Имя консоли: {console_name}" if player.naming_mode != "console" else f"Ввод: {player.input_buffer}_"
+                draw_button(screen, btn_console_name, name_label, font_body, PANEL_COLOR, border_color, TEXT_WHITE)
 
                 draw_text(screen, f"Итоговая себестоимость: ${unit_cost:.1f} | Мощность: {power:.1f} HW", font_body,
-                          TEXT_MUTED, 45, 440)
+                          TEXT_MUTED, 45, 520)
                 draw_button(screen, btn_console_launch, "ЗАПУСТИТЬ КОНСОЛЬ В ПРОИЗВОДСТВО", font_title, PANEL_COLOR,
                             AMBER, AMBER)
         else:
-            # Процесс R&D консоли активен
             project = player.active_project
             draw_text(screen, f"В РАЗРАБОТКЕ: {project.name}", font_large, AMBER, 45, 165)
 
@@ -461,19 +482,16 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
             }
             draw_text(screen, f"Фаза: {phase_titles[project.phase]}", font_title, TEXT_WHITE, 45, 210)
 
-            # Прогресс бар
             pygame.draw.rect(screen, BG_COLOR, (45, 250, 500, 25))
             pygame.draw.rect(screen, GREEN, (45, 250, int(500 * (project.progress / 100.0)), 25))
             draw_text(screen, f"{project.progress:.1f}%", font_body, TEXT_WHITE, 260, 255)
 
-            # Кнопка создания First-Party игр во время R&D [2]
             draw_text(screen, f"Стартовая линейка игр: {len(active_game_projects)} шт.", font_title, TEXT_WHITE, 45,
                       300)
             for i, fp_game in enumerate(active_game_projects):
                 draw_text(screen, f"- {fp_game.name} (R&D: {min(100.0, fp_game.progress):.1f}%)", font_body, TEXT_MUTED,
                           45, 330 + i * 20)
 
-            # Кнопка начала разработки First-Party игры [2]
             draw_button(screen, btn_fp_game_create, "Создать собственную Launch-игру (Стоимость R&D: $15,000)",
                         font_body, PANEL_COLOR, GREEN, TEXT_WHITE)
 
@@ -540,8 +558,8 @@ def render_finance_tab(screen, player, font_title, font_body, font_large):
     draw_text(screen, f"${fin['net_profit']:,.2f}", font_large, profit_color, 400, 500)
 
 
-def render_licenses_tab(screen, player, games_list, current_year, font_title, font_body):
-    """СТРАНИЦА 5: Игры и Лицензирование стороннего ПО с выбором консоли [2]"""
+def render_licenses_tab(screen, player, games_list, current_year, font_large, font_title, font_body):
+    """СТРАНИЦА 5: Игры и Лицензирование стороннего ПО с выбором консоли [3]"""
     draw_text(screen, "ЛИЦЕНЗИРОВАНИЕ СТОРОННИХ ИГРОВЫХ ХИТОВ (GAME LICENSING)", font_title, AMBER, 30, 70)
     draw_text(screen, "Портируйте игры сторонних студий, чтобы поднять роялти. Портирование занимает 2 месяца!",
               font_body, TEXT_MUTED, 30, 95)
@@ -568,9 +586,9 @@ def render_licenses_tab(screen, player, games_list, current_year, font_title, fo
                   150)
         return
 
-    target_console = player.released_consoles[0]  # Направляем порт на текущую запущенную консоль
+    target_console = player.released_consoles[0]
 
-    # Проверка на наличие у консоли сменных картриджей/носителей данных [1]
+    # Проверка на наличие у консоли сменных картриджей/носителей данных
     is_programmable = target_console.spec_info.get("is_programmable", False)
 
     for g in year_games:
@@ -595,11 +613,9 @@ def render_licenses_tab(screen, player, games_list, current_year, font_title, fo
         elif g.acquired_by is not None:
             draw_button(screen, btn_rect, f"У ИИ ({g.acquired_by})", font_body, PANEL_COLOR, RED, RED)
         elif not is_programmable:
-            # Запрет портов при отсутствии картриджной системы [1]
             draw_button(screen, btn_rect, "НЕТ КАРТРИДЖЕЙ!", font_body, PANEL_COLOR, RED, RED)
         else:
             cost_total = g.license_cost
-            # Проверка мощности консоли: слабая консоль удваивает цену лицензии/адаптации [1]
             is_weak = target_console.hardware_power < g.min_power
             if is_weak:
                 cost_total *= 2.0

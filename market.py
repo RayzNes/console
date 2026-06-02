@@ -1,17 +1,16 @@
 # market.py
 
 import math
-from config import INFLATION_FACTORS, MARKET_CAPACITY, SEASONAL_FACTORS
+from config import INFLATION_FACTORS, SEASONAL_FACTORS, HISTORICAL_EVENTS
 from console import Console
 
 
 class Market:
-    def __init__(self, events_db: list, difficulty_multiplier: float = 1.0):
+    def __init__(self, difficulty_multiplier: float = 1.0):
         self.current_year = 1972
         self.current_month = 1
         self.consoles = []
         self.history = []
-        self.events_db = events_db
         self.active_event_info = None
         self.difficulty_multiplier = difficulty_multiplier
 
@@ -22,15 +21,14 @@ class Market:
         return INFLATION_FACTORS.get(self.current_year, 2.40)
 
     def get_market_capacity(self) -> int:
+        from config import MARKET_CAPACITY
         annual_cap = MARKET_CAPACITY.get(self.current_year, 18_000_000)
         monthly_base = int(annual_cap / 12)
-
-        # Применение сезонности и уровня сложности [1]
         season_mod = SEASONAL_FACTORS.get(self.current_month, 1.0)
         return int(monthly_base * self.difficulty_multiplier * season_mod)
 
     def get_event_for_year(self, year: int):
-        for event in self.events_db:
+        for event in HISTORICAL_EVENTS:
             if event["year"] == year:
                 return event
         return None
@@ -105,7 +103,6 @@ class Market:
 
             utility = (tech_factor * 2.0 + library_factor * 2.5 + marketing_factor * 1.0) * price_factor
 
-            # Влияние репутации бренда на привлекательность консоли игрока [2]
             if console.is_player and player_reputation:
                 utility *= player_reputation.get_market_multiplier()
 
@@ -117,7 +114,7 @@ class Market:
         monthly_sales = {}
         total_sold = 0
 
-        # Поставки у ИИ-соперников
+        # Пополнение ИИ
         for console in active_consoles:
             if not console.is_player:
                 if console.inventory < capacity * 0.2:

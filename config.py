@@ -107,7 +107,7 @@ HISTORICAL_GPUS = [
     {
         "id": "gpu_gi_ay3_8910_1979", "name": "GI AY-3-8910", "year": 1979,
         "power": 8.0, "cost": 25.00, "license_fee": 2500,
-        "desc": "Программируемый звукогенератор с базовой спрайтовой логикой."
+        "desc": "Программируемый звукогенератор со спрайтовой логикой."
     },
     {
         "id": "gpu_tms9918_1981", "name": "TMS9918 (Texas Instr.)", "year": 1981,
@@ -151,6 +151,39 @@ HISTORICAL_MEDIA = [
         "id": "media_bank_cart_1983", "name": "Bank-Switching Cartridge", "year": 1983,
         "power_mult": 2.4, "cost": 18.00, "license_fee": 5000, "is_programmable": True,
         "desc": "Картриджи с мапперами обхода архитектурных лимитов ОЗУ."
+    }
+]
+
+HISTORICAL_EVENTS = [
+    {
+        "year": 1972, "name": "Рождение индустрии",
+        "desc": "Выход Magnavox Odyssey. Видеоигры официально пришли в дома простых обывателей.",
+        "effect_type": "market_capacity_multiplier", "effect_value": 1.0
+    },
+    {
+        "year": 1975, "name": "Бум домашних Pong-систем",
+        "desc": "Интерес к домашним играм взлетает благодаря Pong от Atari. Базовая емкость рынка удваивается.",
+        "effect_type": "market_capacity_multiplier", "effect_value": 2.0
+    },
+    {
+        "year": 1977, "name": "Эра картриджей",
+        "desc": "Появление сменных игр меняет правила игры. Важность библиотеки игр удваивается.",
+        "effect_type": "library_weight_multiplier", "effect_value": 2.0
+    },
+    {
+        "year": 1980, "name": "Лихорадка Space Invaders",
+        "desc": "Безумный успех аркадных портов дома. Доля людей, отказывающихся от покупки консоли, снижается.",
+        "effect_type": "no_buy_penalty", "effect_value": -5.0
+    },
+    {
+        "year": 1982, "name": "Кризис перенасыщения",
+        "desc": "Рынок забит плохими играми сторонних студий. Среднее качество библиотек снижается на 15%.",
+        "effect_type": "library_quality_penalty", "effect_value": -0.15
+    },
+    {
+        "year": 1983, "name": "Великий Крах Видеоигр 1983",
+        "desc": "Крах доверия к индустрии. Емкость рынка катастрофически обваливается на 85%!",
+        "effect_type": "market_capacity_multiplier", "effect_value": 0.15
     }
 ]
 
