@@ -25,4 +25,25 @@ MARKET_CAPACITY = {
     1982: 16_000_000,
     1983: 18_000_000
 }
-# Базовый тренд рос, пока не вмешалось событие краха
+
+# Настройки уровней сложности
+DIFFICULTIES = {
+    "easy": {
+        "start_cash": 2_000_000.0,
+        "demand_multiplier": 1.3,
+        "research_speed_multiplier": 1.5,
+        "manufacturing_cost_multiplier": 0.8
+    },
+    "medium": {
+        "start_cash": 1_200_000.0,
+        "demand_multiplier": 1.0,
+        "research_speed_multiplier": 1.0,
+        "manufacturing_cost_multiplier": 1.0
+    },
+    "hard": {
+        "start_cash": 600_000.0,
+        "demand_multiplier": 0.7,
+        "research_speed_multiplier": 0.7,
+        "manufacturing_cost_multiplier": 1.3
+    }
+}

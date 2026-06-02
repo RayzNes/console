@@ -6,13 +6,14 @@ from console import Console
 
 
 class Market:
-    def __init__(self, events_db: list):
+    def __init__(self, events_db: list, difficulty_multiplier: float = 1.0):
         self.current_year = 1972
         self.current_month = 1  # 1 - 12
         self.consoles = []
         self.history = []
         self.events_db = events_db
         self.active_event_info = None
+        self.difficulty_multiplier = difficulty_multiplier
 
     def add_console(self, console: Console):
         self.consoles.append(console)
@@ -21,9 +22,10 @@ class Market:
         return INFLATION_FACTORS.get(self.current_year, 2.40)
 
     def get_market_capacity(self) -> int:
-        # Месячная емкость рынка = годовая / 12
+        # Корректировка емкости на сложность
         annual_cap = MARKET_CAPACITY.get(self.current_year, 18_000_000)
-        return int(annual_cap / 12)
+        monthly_base = int(annual_cap / 12)
+        return int(monthly_base * self.difficulty_multiplier)
 
     def get_event_for_year(self, year: int):
         for event in self.events_db:
@@ -32,14 +34,12 @@ class Market:
         return None
 
     def simulate_month(self) -> dict:
-        """Расчет одного месяца рыночного цикла"""
         if self.current_year > 1983:
             return None
 
         inflation = self.get_inflation_factor()
         base_monthly_capacity = self.get_market_capacity()
 
-        # Параметры по умолчанию под влиянием макро-событий
         capacity_multiplier = 1.0
         library_weight_multiplier = 1.0
         no_buy_utility_modifier = 0.0
@@ -72,9 +72,7 @@ class Market:
             elif c.launch_year == self.current_year and c.launch_month <= self.current_month:
                 active_consoles.append(c)
 
-        # Развитие стороннего софта (библиотек)
         for console in active_consoles:
-            # Месячный прирост игр
             new_games = max(1, int(console.hardware_power * 0.03))
             console.update_library(new_games)
             if quality_modifier != 0.0:
@@ -100,7 +98,6 @@ class Market:
 
             library_factor = math.log1p(console.library_size) * console.library_quality * library_weight_multiplier
 
-            # Месячный маркетинг
             real_marketing = console.get_real_marketing(inflation)
             marketing_factor = math.log1p(real_marketing / 3000.0)
 
@@ -114,17 +111,15 @@ class Market:
         monthly_sales = {}
         total_sold = 0
 
-        # Моделирование ИИ-складов (ИИ автоматически держит запас на базе спроса)
         for console in active_consoles:
             if not console.is_player:
-                # ИИ «автоматически» пополняет склады под спрос, вычитая расходы
-                console.inventory = int(capacity * 0.4)
+                if console.inventory < capacity * 0.2:
+                    console.inventory += int(capacity * 0.3)
 
         for console in active_consoles:
             share = utilities[console] / total_pool
             demand = int(capacity * share)
 
-            # Ограничение физическими складскими запасами (Shortage Mechanics)
             actual_sales = min(demand, console.inventory)
             console.inventory -= actual_sales
             console.installed_base += actual_sales
