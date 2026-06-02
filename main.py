@@ -2,53 +2,58 @@
 
 import pygame
 import sys
-from config import DIFFICULTIES, START_YEAR, END_YEAR, PRODUCTION_LEAD_TIME, SEASONAL_FACTORS
+from config import (DIFFICULTIES, START_YEAR, END_YEAR, PRODUCTION_LEAD_TIME,
+                    HISTORICAL_CPUS, HISTORICAL_GPUS, HISTORICAL_MEDIA,
+                    PRESET_NAMES, CHIP_PRESET_NAMES)
 from data_loader import load_data
 from ai_competitor import AICompany
 from market import Market
-from player import PlayerCompany, ConsoleProject
+from player import PlayerCompany, ConsoleProject, CustomChipProject, FirstPartyGameProject, PortingProject
 from console import Console
 from games_db import get_historical_games, GameLicense
 import renderer
 
-# Инициализация графики
+# Настройки Pygame
 pygame.init()
 WIDTH, HEIGHT = 1224, 1024
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Console Tycoon: Silicon Race - Interactive Control Panel")
+pygame.display.set_caption("Console Tycoon: Silicon Race")
 clock = pygame.time.Clock()
 
-# Глобальные состояния
-current_difficulty = None
-current_tab = "market"
-rd_sub_tab = "research"
+# Селекторы параметров R&D кастомных чипов
+active_designer_type = "cpu"  # "cpu" или "gpu"
+designer_core_idx = 0
+designer_cache_idx = 0
+designer_process_idx = 0
+designer_package_idx = 0
 
-# Списки выбора компонентов для кастомного конструирования
-selected_cpu_idx = 0
-selected_gpu_idx = 0
-selected_media_idx = 0
-margin_value = 1.5
-
-# Описание интерактивных кнопок подвкладок R&D
-btn_sub_res = pygame.Rect(45, 110, 180, 30)
-btn_sub_design = pygame.Rect(235, 110, 210, 30)
-btn_sub_console = pygame.Rect(455, 110, 180, 30)
+# Текстовые переменные для имен
+selected_console_name_idx = 0
+selected_chip_name_idx = 0
 
 
 def draw_chart(surface, x, y, w, h, market_history, consoles):
     renderer.draw_chart(surface, x, y, w, h, market_history, consoles)
 
-
 def main():
     global current_tab, current_difficulty, rd_sub_tab
     global selected_cpu_idx, selected_gpu_idx, selected_media_idx, margin_value
+    global active_designer_type, designer_core_idx, designer_cache_idx, designer_process_idx, designer_package_idx
+    global selected_console_name_idx, selected_chip_name_idx
+
+    # Initialize these variables before using them
+    current_difficulty = None  # Add this line
+    current_tab = "market"  # Add this line (or set a default)
+    rd_sub_tab = "research"  # Add this line (or set a default)
+    selected_cpu_idx = 0  # Add this line
+    selected_gpu_idx = 0  # Add this line
+    selected_media_idx = 0  # Add this line
+    margin_value = 1.45  # Add this line (default margin)
 
     components_db, events_db = load_data()
     player = None
     market = None
     ai_companies = []
-
-    # Каталог игр для лицензирования [2]
     games_list = get_historical_games()
 
     btn_easy = pygame.Rect(462, 350, 300, 50)
@@ -59,6 +64,7 @@ def main():
     auto_tick_cooldown = 0
 
     while True:
+        # Выбор сложности
         if not current_difficulty:
             renderer.render_difficulty_screen(screen, renderer.font_large, renderer.font_title, renderer.font_body)
             pygame.display.flip()
@@ -103,13 +109,17 @@ def main():
                     return
             continue
 
-        # ИИ-соперники забирают игры на аукционе, если у игрока нет лицензии [2]
+        # Запуск ИИ
         for ai in ai_companies:
             if not ai.launched and market.current_year >= ai.launch_year:
                 console = ai.design_console(components_db)
                 market.add_console(console)
 
-        # Обработка событий
+        # Локальные селекторы имен на основе пресетов из config.py
+        console_name = PRESET_NAMES[selected_console_name_idx % len(PRESET_NAMES)]
+        chip_name = CHIP_PRESET_NAMES[selected_chip_name_idx % len(CHIP_PRESET_NAMES)]
+
+        # Обработка мыши
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -119,12 +129,12 @@ def main():
                 if event.button == 1:
                     mouse_pos = event.pos
 
-                    # Навигация
+                    # Глобальные табы
                     for t_key, rect in renderer.tab_rects.items():
                         if rect.collidepoint(mouse_pos):
                             current_tab = t_key
 
-                    # События: РЫНОК
+                    # Таб: РЫНОК
                     if current_tab == "market":
                         if renderer.btn_step.collidepoint(mouse_pos):
                             simulate_one_month(market, player, components_db, games_list)
@@ -135,94 +145,144 @@ def main():
                             main()
                             return
 
-                    # События: R&D (Исследования)
+                    # Таб: R&D (РАЗРАБОТКА)
                     elif current_tab == "rd":
-                        if btn_sub_res.collidepoint(mouse_pos):
+                        if renderer.btn_sub_res.collidepoint(mouse_pos):
                             rd_sub_tab = "research"
-                        elif btn_sub_design.collidepoint(mouse_pos):
+                        elif renderer.btn_sub_design.collidepoint(mouse_pos):
                             rd_sub_tab = "designer"
-                        elif btn_sub_console.collidepoint(mouse_pos):
+                        elif renderer.btn_sub_console.collidepoint(mouse_pos):
                             rd_sub_tab = "console"
 
-                        # 1. Исследования
+                        # Кадры
+                        if renderer.btn_hire.collidepoint(mouse_pos):
+                            player.engineers += 1
+                        elif renderer.btn_fire.collidepoint(mouse_pos):
+                            player.engineers = max(1, player.engineers - 1)
+
+                        # Подтаб 1: Исследования
                         if rd_sub_tab == "research":
-                            # Передан текущий год из симуляции (Исправлен критический баг №1) [1]
                             avail_nodes = player.tech_tree.get_available_research(market.current_year)
                             offset_y = 205
                             for node in avail_nodes[:10]:
-                                click_rect = pygame.Rect(45, offset_y, 450, 25)
+                                click_rect = pygame.Rect(45, offset_y, 500, 25)
                                 if click_rect.collidepoint(mouse_pos):
                                     player.active_research = node
                                 offset_y += 30
 
-                        # 2. Конструктор Чипов
+                        # Подтаб 2: Конструктор чипов и Лицензирование сторонних чипов [2, 3]
                         elif rd_sub_tab == "designer":
-                            if renderer.btn_cpu_select.collidepoint(mouse_pos):
-                                cpu_core = \
-                                [n for n in player.tech_tree.nodes.values() if n.category == "cpu" and n.researched][-1]
-                                cpu_cache_nodes = [n for n in player.tech_tree.nodes.values() if
-                                                   n.category == "memory" and n.researched and "cache" in n.node_id]
-                                cache = cpu_cache_nodes[-1] if cpu_cache_nodes else None
-                                process = [n for n in player.tech_tree.nodes.values() if
-                                           n.category == "manufacturing" and n.researched][-1]
-                                package = [n for n in player.tech_tree.nodes.values() if
-                                           n.category == "manufacturing" and n.researched and "package" in n.node_id][
-                                    -1]
+                            if not player.active_chip_project:
+                                if renderer.btn_chip_type.collidepoint(mouse_pos):
+                                    active_designer_type = "gpu" if active_designer_type == "cpu" else "cpu"
+                                elif renderer.btn_chip_name.collidepoint(mouse_pos):
+                                    selected_chip_name_idx += 1
+                                elif renderer.btn_chip_core.collidepoint(mouse_pos):
+                                    designer_core_idx += 1
+                                elif renderer.btn_chip_cache.collidepoint(mouse_pos):
+                                    designer_cache_idx += 1
+                                elif renderer.btn_chip_process.collidepoint(mouse_pos):
+                                    designer_process_idx += 1
+                                elif renderer.btn_chip_package.collidepoint(mouse_pos):
+                                    designer_package_idx += 1
 
-                                power, cost = player.tech_tree.calculate_custom_cpu(cpu_core, cache, process, package)
-                                player.custom_cpus.append({
-                                    "name": f"MyCPU-{len(player.custom_cpus) + 1}",
-                                    "power": power, "cost": cost
-                                })
-                                player.add_notification("СКОНСТРУИРОВАН CPU")
+                                # Клик по сборке собственного кастомного чипа
+                                elif renderer.btn_chip_build.collidepoint(mouse_pos):
+                                    cores = [n for n in player.tech_tree.nodes.values() if
+                                             n.category == active_designer_type and n.researched]
+                                    processes = [n for n in player.tech_tree.nodes.values() if
+                                                 n.category == "manufacturing" and "tech_" in n.node_id and n.researched]
+                                    packages = [n for n in player.tech_tree.nodes.values() if
+                                                n.category == "manufacturing" and "package_" in n.node_id and n.researched]
+                                    core = cores[designer_core_idx % len(cores)] if cores else None
+                                    process = processes[designer_process_idx % len(processes)] if processes else None
+                                    package = packages[designer_package_idx % len(packages)] if packages else None
 
-                            elif renderer.btn_gpu_select.collidepoint(mouse_pos):
-                                gpu_core = \
-                                [n for n in player.tech_tree.nodes.values() if n.category == "gpu" and n.researched][-1]
-                                memory = [n for n in player.tech_tree.nodes.values() if
-                                          n.category == "memory" and n.researched and "mem" in n.node_id][-1]
-                                process = [n for n in player.tech_tree.nodes.values() if
-                                           n.category == "manufacturing" and n.researched][-1]
-                                package = [n for n in player.tech_tree.nodes.values() if
-                                           n.category == "manufacturing" and n.researched and "package" in n.node_id][
-                                    -1]
+                                    if active_designer_type == "cpu":
+                                        caches = [n for n in player.tech_tree.nodes.values() if
+                                                  n.category == "memory" and "l1_" in n.node_id and n.researched]
+                                        cache = caches[designer_cache_idx % len(caches)] if caches else None
+                                        p, c = player.tech_tree.calculate_custom_cpu(core, cache, process, package)
+                                        rd_cost = 50000.0 + (core.base_cost * 0.5)
+                                    else:
+                                        mems = [n for n in player.tech_tree.nodes.values() if
+                                                n.category == "memory" and "mem_" in n.node_id and n.researched]
+                                        mem = mems[designer_cache_idx % len(mems)] if mems else None
+                                        p, c = player.tech_tree.calculate_custom_gpu(core, mem, process, package)
+                                        rd_cost = 40000.0 + (core.base_cost * 0.5)
 
-                                power, cost = player.tech_tree.calculate_custom_gpu(gpu_core, memory, process, package)
-                                player.custom_gpus.append({
-                                    "name": f"MyGPU-{len(player.custom_gpus) + 1}",
-                                    "power": power, "cost": cost
-                                })
-                                player.add_notification("СКОНСТРУИРОВАН GPU")
+                                    if player.cash >= rd_cost:
+                                        player.cash -= rd_cost
+                                        player.active_chip_project = CustomChipProject(chip_name, active_designer_type,
+                                                                                       p, c, rd_cost, 4)
+                                        player.add_notification(f"ЗАПУЩЕН R&D ЧИПА: {chip_name}")
 
-                        # 3. Сборка консолей из чипов
+                                # Покупка готовой сторонней лицензии (быстро и сразу!) [2]
+                                elif renderer.btn_chip_license_cpu.collidepoint(mouse_pos):
+                                    avail_lic = [c for c in HISTORICAL_CPUS if c["year"] <= market.current_year]
+                                    if avail_lic:
+                                        # Берем последний доступный сторонний CPU
+                                        target_lic = avail_lic[-1]
+                                        if player.cash >= target_lic["license_fee"] and target_lic["name"] not in [
+                                            x["name"] for x in player.licensed_cpus]:
+                                            player.cash -= target_lic["license_fee"]
+                                            player.licensed_cpus.append(
+                                                {"name": target_lic["name"], "power": target_lic["power"],
+                                                 "cost": target_lic["cost"]})
+                                            player.add_notification(f"КУПЛЕНА ЛИЦЕНЗИЯ: {target_lic['name']}")
+
+                                elif renderer.btn_chip_license_gpu.collidepoint(mouse_pos):
+                                    avail_lic = [g for g in HISTORICAL_GPUS if g["year"] <= market.current_year]
+                                    if avail_lic:
+                                        target_lic = avail_lic[-1]
+                                        if player.cash >= target_lic["license_fee"] and target_lic["name"] not in [
+                                            x["name"] for x in player.licensed_gpus]:
+                                            player.cash -= target_lic["license_fee"]
+                                            player.licensed_gpus.append(
+                                                {"name": target_lic["name"], "power": target_lic["power"],
+                                                 "cost": target_lic["cost"]})
+                                            player.add_notification(f"КУПЛЕНА ЛИЦЕНЗИЯ: {target_lic['name']}")
+
+                        # Подтаб 3: Сборка Консолей
                         elif rd_sub_tab == "console":
-                            if renderer.btn_hire.collidepoint(mouse_pos):
-                                player.engineers += 1
-                            elif renderer.btn_fire.collidepoint(mouse_pos):
-                                player.engineers = max(1, player.engineers - 1)
+                            all_cpus = player.custom_cpus + player.licensed_cpus
+                            all_gpus = player.custom_gpus + player.licensed_gpus
+                            all_media = HISTORICAL_MEDIA  # Используем новый справочник носителей [2]
 
-                            if not player.active_project and player.custom_cpus and player.custom_gpus:
-                                if renderer.btn_cpu_select.collidepoint(mouse_pos):
-                                    selected_cpu_idx = (selected_cpu_idx + 1) % len(player.custom_cpus)
-                                elif renderer.btn_gpu_select.collidepoint(mouse_pos):
-                                    selected_gpu_idx = (selected_gpu_idx + 1) % len(player.custom_gpus)
-                                elif renderer.btn_media_select.collidepoint(mouse_pos):
-                                    selected_media_idx = (selected_media_idx + 1) % len(components_db["media"])
-                                elif renderer.btn_margin_dec.collidepoint(mouse_pos):
+                            if not player.active_project and all_cpus and all_gpus:
+                                if renderer.btn_console_cpu.collidepoint(mouse_pos):
+                                    selected_cpu_idx = (selected_cpu_idx + 1) % len(all_cpus)
+                                elif renderer.btn_console_gpu.collidepoint(mouse_pos):
+                                    selected_gpu_idx = (selected_gpu_idx + 1) % len(all_gpus)
+                                elif renderer.btn_console_media.collidepoint(mouse_pos):
+                                    selected_media_idx = (selected_media_idx + 1) % len(all_media)
+                                elif renderer.btn_console_margin_dec.collidepoint(mouse_pos):
                                     margin_value = max(1.1, margin_value - 0.1)
-                                elif renderer.btn_margin_inc.collidepoint(mouse_pos):
+                                elif renderer.btn_console_margin_inc.collidepoint(mouse_pos):
                                     margin_value = min(3.0, margin_value + 0.1)
-                                elif renderer.btn_launch_project.collidepoint(mouse_pos):
-                                    cpu = player.custom_cpus[selected_cpu_idx % len(player.custom_cpus)]
-                                    gpu = player.custom_gpus[selected_gpu_idx % len(player.custom_gpus)]
-                                    med = components_db["media"][selected_media_idx]
-                                    player.active_project = ConsoleProject("MyConsole v1", cpu, gpu, med, margin_value)
+                                elif renderer.btn_console_name.collidepoint(mouse_pos):
+                                    selected_console_name_idx += 1
+                                elif renderer.btn_console_launch.collidepoint(mouse_pos):
+                                    cpu = all_cpus[selected_cpu_idx % len(all_cpus)]
+                                    gpu = all_gpus[selected_gpu_idx % len(all_gpus)]
+                                    med = all_media[selected_media_idx % len(all_media)]
 
-                    # События: ФАБРИКА
+                                    player.active_project = ConsoleProject(console_name, cpu, gpu, med, margin_value)
+                                    player.add_notification(f"R&D КОНСОЛИ НАЧАТО: {console_name}")
+
+                            elif player.active_project:
+                                # Кнопка создания собственной First-Party игры во время R&D консоли [2]
+                                if renderer.btn_fp_game_create.collidepoint(mouse_pos):
+                                    cost_fp = 15000.0
+                                    if player.cash >= cost_fp and len(player.active_game_projects) < 3:
+                                        player.cash -= cost_fp
+                                        g_name = f"Launch Hit #{len(player.active_game_projects) + 1}"
+                                        player.active_game_projects.append(FirstPartyGameProject(g_name, cost_fp, 3))
+                                        player.add_notification(f"РАЗРАБОТКА ИГРЫ: {g_name}")
+
+                    # Таб: ФАБРИКА
                     elif current_tab == "factory" and player.released_consoles:
                         p_console = player.released_consoles[0]
-
-                        # Месяцы доставки рассчитываются из Lead Time [1]
                         if renderer.btn_order_10k.collidepoint(mouse_pos) and player.cash >= (
                                 10000 * p_console.unit_cost):
                             order_silicon(player, p_console, 10_000, PRODUCTION_LEAD_TIME["small"])
@@ -233,32 +293,35 @@ def main():
                                 100000 * p_console.unit_cost):
                             order_silicon(player, p_console, 100_000, PRODUCTION_LEAD_TIME["large"])
 
-                    # События: ЛИЦЕНЗИИ [2]
-                    elif current_tab == "licenses":
-                        year_games = [g for g in games_list if g.year_available == market.current_year]
-                        offset_y = 130
-                        for g in year_games:
-                            btn_rect = pygame.Rect(950, offset_y + 20, 220, 40)
-                            if btn_rect.collidepoint(mouse_pos) and g.acquired_by is None:
-                                if player.cash >= g.license_cost:
-                                    player.cash -= g.license_cost
-                                    g.acquired_by = 'player'
-                                    player.licensed_games.append(g)
+                    # Таб: ЛИЦЕНЗИИ [2]
+                    elif current_tab == "licenses" and player.released_consoles:
+                        target_console = player.released_consoles[0]
+                        is_programmable = target_console.spec_info.get("is_programmable", False)
 
-                                    # Роялти выросло + увеличиваем размер библиотеки активной консоли [2]
-                                    if player.released_consoles:
-                                        p_console = player.released_consoles[0]
-                                        p_console.library_size += 1
+                        if is_programmable:
+                            year_games = [g for g in games_list if g.year_available == market.current_year]
+                            offset_y = 130
+                            for g in year_games:
+                                btn_rect = pygame.Rect(540, offset_y + 20, 180, 40)
+                                is_porting = any(p.game.name == g.name for p in player.active_ports)
+                                is_acquired = g.acquired_by == 'player' or any(
+                                    l_game.name == g.name for l_game in player.licensed_games)
 
-                                        # Проверка мощности консоли: слабая консоль ухудшает качество софта [1]
-                                        if p_console.hardware_power < g.min_power:
-                                            p_console.library_quality = max(0.1, p_console.library_quality - 0.15)
-                                            player.add_notification(f"СЛАБОЕ ЖЕЛЕЗО: Качество {g.name} урезано!")
-                                        else:
-                                            player.add_notification(f"ЛИЦЕНЗИРОВАНО: {g.name}")
+                                if btn_rect.collidepoint(
+                                        mouse_pos) and not is_acquired and not is_porting and g.acquired_by is None:
+                                    cost_total = g.license_cost
+                                    double_cost = target_console.hardware_power < g.min_power
+                                    if double_cost:
+                                        cost_total *= 2.0  # Удвоение цены за слабое железо [1]
+
+                                    if player.cash >= cost_total:
+                                        player.cash -= cost_total
+                                        # Отправка на портирование (займет 2 месяца) [2]
+                                        player.active_ports.append(PortingProject(g, target_console, double_cost))
+                                        player.add_notification(f"НАЧАТО ПОРТИРОВАНИЕ: {g.name}")
                                 offset_y += 95
 
-            # Дублирующее клавиатурное управление
+            # Кнопочные дубликаторы горячих клавиш
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_F1:
                     current_tab = "market"
@@ -279,22 +342,19 @@ def main():
                     main()
                     return
 
-        # Шаг автоматической прокрутки
         if auto_play:
             auto_tick_cooldown += 1
             if auto_tick_cooldown >= 30:
                 simulate_one_month(market, player, components_db, games_list)
                 auto_tick_cooldown = 0
 
-        # Анимация и удаление всплывающих сообщений
         player.update_notifications()
 
-        # Рендеринг кадра
+        # Вызовы рендеринга из renderer.py
         screen.fill(renderer.BG_COLOR)
         pygame.draw.rect(screen, renderer.PANEL_COLOR, (0, 0, WIDTH, 50))
         pygame.draw.line(screen, renderer.BORDER_COLOR, (0, 50), (WIDTH, 50), 2)
 
-        # Вывод кнопок вкладок
         for t_key, rect in renderer.tab_rects.items():
             is_active = (current_tab == t_key)
             bg = renderer.AMBER if is_active else renderer.PANEL_COLOR
@@ -309,7 +369,6 @@ def main():
         cash_color = renderer.GREEN if player.cash >= 0 else renderer.RED
         renderer.draw_text(screen, f"Баланс: ${player.cash:,.0f}", renderer.font_title, cash_color, 820, 15)
 
-        # Отрисовка активных экранов
         if current_tab == "market":
             renderer.render_market_tab(screen, market, auto_play, renderer.font_title, renderer.font_body,
                                        renderer.btn_step, renderer.btn_auto, renderer.btn_reset, player)
@@ -317,10 +376,9 @@ def main():
             renderer.render_rd_tab(screen, player, components_db, selected_cpu_idx, selected_gpu_idx,
                                    selected_media_idx, margin_value,
                                    renderer.font_title, renderer.font_body, renderer.font_large, rd_sub_tab,
-                                   renderer.btn_hire, renderer.btn_fire, renderer.btn_cpu_select,
-                                   renderer.btn_gpu_select, renderer.btn_media_select,
-                                   renderer.btn_margin_dec, renderer.btn_margin_inc, renderer.btn_launch_project,
-                                   btn_sub_res, btn_sub_design, btn_sub_console, None, None)
+                                   active_designer_type, chip_name, designer_core_idx, designer_cache_idx,
+                                   designer_process_idx, designer_package_idx,
+                                   player.active_chip_project, player.active_game_projects, console_name)
         elif current_tab == "factory":
             renderer.render_factory_tab(screen, player, renderer.font_title, renderer.font_body, renderer.font_large,
                                         renderer.btn_order_10k, renderer.btn_order_50k, renderer.btn_order_100k)
@@ -330,7 +388,6 @@ def main():
             renderer.render_licenses_tab(screen, player, games_list, market.current_year, renderer.font_title,
                                          renderer.font_body)
 
-        # Вывод всплывающих уведомлений [1]
         renderer.draw_notifications(screen, player)
 
         pygame.display.flip()
@@ -338,17 +395,64 @@ def main():
 
 
 def simulate_one_month(market, player: PlayerCompany, components_db, games_list):
-    """Экономический расчет с репутацией и роялти за лицензии"""
     if player.cash < 0:
         player.bankruptcy_months += 1
     else:
         player.bankruptcy_months = 0
 
-    # Прогресс исследований и R&D консоли
     rd_expense = 0.0
+
+    # Прогресс исследований тех-древа
     research_cost = player.advance_research()
     rd_expense += research_cost
 
+    # Прогресс активной разработки собственного CPU/GPU в R&D [3]
+    if player.active_chip_project:
+        proj = player.active_chip_project
+        points_generated = player.engineers * 4.0 * player.diff_settings["research_speed_multiplier"]
+        proj.advance(points_generated)
+
+        rd_expense += player.engineers * 400.0  # амортизация оборудования R&D
+
+        points_needed = max(10, proj.dev_months * 10)
+        if proj.progress >= points_needed:
+            # Чип готов! Добавляем в локальную базу
+            if proj.category == "cpu":
+                player.custom_cpus.append({"name": proj.name, "power": proj.power, "cost": proj.cost})
+            else:
+                player.custom_gpus.append({"name": proj.name, "power": proj.power, "cost": proj.cost})
+
+            player.add_notification(f"ЧИП ГОТОВ К ПРОИЗВОДСТВУ: {proj.name}")
+            player.active_chip_project = None
+
+    # Прогресс собственных 1st Party игр во время R&D консоли [2]
+    if player.active_project:
+        points_generated = player.engineers * 3.0
+        for fp_game in player.active_game_projects:
+            if fp_game.progress < 30.0:  # Каждая игра требует 30 очков
+                fp_game.advance(points_generated)
+                rd_expense += 200.0  # Месячные затраты на дизайн игры
+
+    # Прогресс сторонних портов/лицензий (портирование занимает 2 месяца) [2]
+    remaining_ports = []
+    for port in player.active_ports:
+        port.months_left -= 1
+        if port.months_left <= 0:
+            # Порт завершен! Игра официально выходит на консоли
+            player.licensed_games.append(port.game)
+            port.console.library_size += 1
+
+            # Если железо консоли слабее игры, ее качество ухудшается на 15% [1]
+            if port.double_cost:
+                port.console.library_quality = max(0.1, port.console.library_quality - 0.15)
+                player.add_notification(f"ПОРТ ЗАВЕРШЕН: {port.game.name} (Ухудшен из-за ТТХ)")
+            else:
+                player.add_notification(f"ПОРТ ЗАВЕРШЕН: {port.game.name}!")
+        else:
+            remaining_ports.append(port)
+    player.active_ports = remaining_ports
+
+    # Прогресс разработки консоли
     if player.active_project:
         eng_points = player.engineers * 5.0
         project = player.active_project
@@ -356,33 +460,47 @@ def simulate_one_month(market, player: PlayerCompany, components_db, games_list)
         rd_expense += player.engineers * 500.0
 
         if project.phase == "ready":
+            # Считаем количество готовых 1st party игр в стартовой линейке [2]
+            completed_fp_games = [g for g in player.active_game_projects if g.progress >= 30.0]
+            start_library_size = 5 + len(completed_fp_games)
+
+            # Рассчитываем стартовый буст качества от проработанности игр
+            quality_boost = sum(0.04 for g in completed_fp_games)
+            final_quality = min(1.0, project.quality + quality_boost)
+
             player_console = Console(
                 name=project.name,
                 launch_year=market.current_year,
                 price=project.retail_price,
                 hardware_power=project.hardware_power,
-                library_size=5 + len(player.licensed_games),
-                library_quality=project.quality,
+                library_size=start_library_size,
+                library_quality=final_quality,
                 marketing_budget=50_000,
                 color=(241, 196, 15),
-                spec_info={"cost": project.unit_cost, "cpu_name": project.cpu["name"], "gpu_name": project.gpu["name"]},
+                spec_info={
+                    "cost": project.unit_cost,
+                    "cpu_name": project.cpu["name"],
+                    "gpu_name": project.gpu["name"],
+                    "is_programmable": project.media.get("is_programmable", False)  # Сохраняем тип картриджа [1]
+                },
                 is_player=True
             )
             player_console.launch_month = market.current_month
             market.add_console(player_console)
             player.released_consoles.append(player_console)
+
             player.active_project = None
+            player.active_game_projects = []  # Очищаем очередь игр
+            player.add_notification(f"УСПЕШНЫЙ ЗАПУСК КОНСОЛИ: {player_console.name}!")
 
     arrived_stock = player.process_monthly_logistics()
     if arrived_stock > 0:
-        player.add_notification(f"ПОСТАВКА: +{arrived_stock:,} кремниевых плат!")
+        player.add_notification(f"ПОСТАВКА ПЛАТ: +{arrived_stock:,} шт.")
 
     if player.released_consoles:
         player.released_consoles[0].inventory += arrived_stock
 
     salaries = player.get_monthly_salaries()
-
-    # Запуск ежемесячной симуляции рынка
     monthly_sales = market.simulate_month(player.reputation)
 
     hw_revenue = 0.0
@@ -395,37 +513,32 @@ def simulate_one_month(market, player: PlayerCompany, components_db, games_list)
     if player.released_consoles:
         p_console = player.released_consoles[0]
         units_sold = monthly_sales.get(p_console, 0)
-
-        # Расчет доли упущенных из-за дефицита продаж
         if units_sold > 0:
             shortage_ratio = max(0.0, 1.0 - (p_console.inventory / float(units_sold + p_console.inventory + 1)))
 
         hw_revenue = units_sold * p_console.price
 
-        # Динамические роялти за каждую выкупленную лицензию [1, 2]
         if p_console.installed_base > 0:
-            base_royalty_payout = 0.15  # Базовая ставка
+            base_royalty_payout = 0.15
+            # Каждая полностью портированная игра добавляет свой буст к роялти-прибыли [1, 2]
             for game in player.licensed_games:
                 base_royalty_payout += game.base_royalty
             royalty_revenue = p_console.installed_base * base_royalty_payout
 
         marketing_expenses = p_console.marketing_budget
         warehouse_cost = p_console.inventory * 1.0
-
-        # Обновление репутации бренда на базе качества и дефицита [2]
         player.reputation.update(p_console.library_quality, p_console.marketing_budget, shortage_ratio)
 
-    # ИИ выкупает оставшиеся игры на аукционе в конце месяца [2]
+    # ИИ выкупает оставшиеся лицензии в конце месяца
     unowned_games = [g for g in games_list if g.year_available == market.current_year and g.acquired_by is None]
     for game in unowned_games:
-        # Простой случайный выкуп ИИ
         import random
-        if random.random() < 0.15 and market.consoles:
+        if random.random() < 0.12 and market.consoles:
             ai_choice = random.choice([c for c in market.consoles if not c.is_player])
             game.acquired_by = ai_choice.name
             ai_choice.library_size += 1
 
-    # Изъятие денег на закупку при финальной доставке
+    # Закупка у подрядчиков
     for order in player.production_orders:
         if order["months_left"] == 1:
             manufacturing_cost += order["quantity"] * order["unit_cost"] * player.diff_settings[
@@ -449,7 +562,6 @@ def simulate_one_month(market, player: PlayerCompany, components_db, games_list)
 
 
 def order_silicon(player: PlayerCompany, console: Console, qty: int, lead_time: int):
-    """Метод заказа с предоплатой (исправлен баг №2)"""
     cost_total = qty * console.unit_cost * player.diff_settings["manufacturing_cost_multiplier"]
     player.cash -= cost_total
     player.production_orders.append({
@@ -457,7 +569,7 @@ def order_silicon(player: PlayerCompany, console: Console, qty: int, lead_time: 
         "quantity": qty,
         "unit_cost": console.unit_cost
     })
-    player.add_notification("ЗАКАЗ РАЗМЕЩЕН НА ФАБРИКЕ")
+    player.add_notification("ЗАКАЗ ОПЛАЧЕН И НАПРАВЛЕН В СБОРКУ")
 
 
 if __name__ == "__main__":

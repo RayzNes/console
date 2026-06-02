@@ -2,25 +2,59 @@
 
 from tech_tree import TechTree
 
+class CustomChipProject:
+    """Проект разработки собственного чипа (CPU или GPU) в R&D"""
+    def __init__(self, name: str, category: str, power: float, cost: float, rd_cost: float, dev_months: int):
+        self.name = name
+        self.category = category  # "cpu" / "gpu"
+        self.power = power
+        self.cost = cost
+        self.rd_cost = rd_cost
+        self.dev_months = dev_months
+        self.progress = 0.0
+
+    def advance(self, engineer_points: float):
+        # 10 очков за месяц разработки
+        points_needed = max(10, self.dev_months * 10)
+        self.progress += engineer_points
+
+
+class FirstPartyGameProject:
+    """Проект собственной игры во время R&D консоли [2]"""
+    def __init__(self, name: str, cost: float, dev_months: int):
+        self.name = name
+        self.cost = cost
+        self.dev_months = dev_months
+        self.progress = 0.0
+
+    def advance(self, engineer_points: float):
+        points_needed = max(10, self.dev_months * 10)
+        self.progress += engineer_points
+
+
+class PortingProject:
+    """Проект портирования сторонней игры на конкретную консоль [2]"""
+    def __init__(self, game, console, double_cost: bool):
+        self.game = game
+        self.console = console
+        self.double_cost = double_cost
+        self.months_left = 2  # Стандартное время портирования - 2 месяца
+
 
 class BrandReputation:
     def __init__(self):
-        self.quality_perception = 0.5  # Восприятие качества
-        self.innovation_score = 0.5  # Инновационность
-        self.customer_loyalty = 0.3  # Лояльность игроков
+        self.quality_perception = 0.5
+        self.innovation_score = 0.5
+        self.customer_loyalty = 0.3
 
     def update(self, console_quality: float, marketing_spend: float, shortage_ratio: float):
-        # Месячное изменение репутации
         self.quality_perception = max(0.1, min(1.0, self.quality_perception * 0.95 + console_quality * 0.05))
         marketing_bonus = min(0.02, marketing_spend / 1_000_000.0)
         self.innovation_score = max(0.1, min(1.0, self.innovation_score * 0.98 + marketing_bonus))
-
-        # Лояльность падает, если на рынке дефицит консолей (покупатели недовольны)
         loyalty_penalty = 0.1 * shortage_ratio
         self.customer_loyalty = max(0.1, min(1.0, self.customer_loyalty * 0.97 + (0.01 - loyalty_penalty)))
 
     def get_market_multiplier(self) -> float:
-        """Репутация дает буст к привлекательности консоли на рынке"""
         return 1.0 + (self.quality_perception * 0.2) + (self.customer_loyalty * 0.15)
 
 
@@ -32,31 +66,38 @@ class ConsoleProject:
         self.media = media
         self.margin = margin
 
-        self.unit_cost = cpu["cost"] + gpu["cost"] + media["cost"]
+        # Добавочная стоимость за дисковод
+        floppy_overhead = 80.0 if "Floppy" in media["name"] else 0.0
+        self.unit_cost = cpu["cost"] + gpu["cost"] + media["cost"] + floppy_overhead
         self.retail_price = int(self.unit_cost * margin)
         self.hardware_power = (cpu["power"] + gpu["power"]) * media["power_mult"]
 
         self.phase = "design"
         self.progress = 0.0
         self.quality = 0.50
+        self.phase_thresholds = {
+            "design": 30.0,  # 30% - переход к прототипу
+            "prototype": 70.0,  # 70% - переход к тестированию
+            "testing": 100.0  # 100% - готово
+        }
 
     def advance_development(self, engineer_points: float):
-        if self.phase == "design":
-            self.progress += engineer_points * 0.8
-            if self.progress >= 100.0:
-                self.phase = "prototype"
-                self.progress = 0.0
-        elif self.phase == "prototype":
-            self.progress += engineer_points * 0.5
-            if self.progress >= 100.0:
-                self.phase = "testing"
-                self.progress = 0.0
-        elif self.phase == "testing":
-            self.progress += engineer_points * 0.3
-            self.quality = min(1.0, self.quality + 0.02)
-            if self.progress >= 100.0:
-                self.phase = "ready"
-                self.progress = 100.0
+        """Продвижение разработки консоли"""
+        self.progress += engineer_points * 0.5  # Скорость прогресса
+
+        # Обновление фазы в зависимости от прогресса
+        if self.phase == "design" and self.progress >= self.phase_thresholds["design"]:
+            self.phase = "prototype"
+            self.quality = 0.65
+        elif self.phase == "prototype" and self.progress >= self.phase_thresholds["prototype"]:
+            self.phase = "testing"
+            self.quality = 0.80
+        elif self.phase == "testing" and self.progress >= self.phase_thresholds["testing"]:
+            self.phase = "ready"
+            self.quality = 0.95
+
+        # Ограничиваем прогресс 100%
+        self.progress = min(100.0, self.progress)
 
 
 class PlayerCompany:
@@ -76,17 +117,24 @@ class PlayerCompany:
         self.bankruptcy_months = 0
         self.reputation = BrandReputation()
 
-        # Список купленных лицензий на игры
-        self.licensed_games = []
+        # Новые очереди проектов
+        self.active_chip_project = None      # Проект R&D CPU/GPU
+        self.active_game_projects = []       # Проекты 1st party игр во время разработки консоли [2]
+        self.active_ports = []               # Текущие сторонние порты [2]
+        self.licensed_games = []             # Полностью готовые портированные сторонние игры
 
-        # Очередь всплывающих уведомлений (text, frames_remaining)
+        # Лицензированные чипы сторонних производителей
+        self.licensed_cpus = []
+        self.licensed_gpus = []
+
+        # База кастомно разработанных чипов
+        self.custom_cpus = []
+        self.custom_gpus = []
+
         self.notifications = []
 
         self.tech_tree = TechTree()
         self.active_research = None
-
-        self.custom_cpus = []
-        self.custom_gpus = []
 
         self.financials_last_month = {
             "hw_revenue": 0.0,
@@ -100,7 +148,6 @@ class PlayerCompany:
         }
 
     def add_notification(self, text: str):
-        """Добавить сообщение на экран на 4 секунды (240 кадров при 60 FPS)"""
         self.notifications.append([text, 240])
 
     def update_notifications(self):
@@ -134,7 +181,7 @@ class PlayerCompany:
         percent = (node.progress_points / total_points_needed) * 100.0
         if percent >= 100.0:
             node.researched = True
-            self.add_notification(f"ИССЛЕДОВАНИЕ ЗАВЕРШЕНО: {node.name}")
+            self.add_notification(f"ИССЛЕДОВАНО: {node.name}")
             self.active_research = None
 
         return monthly_cost
