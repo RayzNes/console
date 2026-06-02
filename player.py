@@ -3,6 +3,27 @@
 from tech_tree import TechTree
 
 
+class BrandReputation:
+    def __init__(self):
+        self.quality_perception = 0.5  # Восприятие качества
+        self.innovation_score = 0.5  # Инновационность
+        self.customer_loyalty = 0.3  # Лояльность игроков
+
+    def update(self, console_quality: float, marketing_spend: float, shortage_ratio: float):
+        # Месячное изменение репутации
+        self.quality_perception = max(0.1, min(1.0, self.quality_perception * 0.95 + console_quality * 0.05))
+        marketing_bonus = min(0.02, marketing_spend / 1_000_000.0)
+        self.innovation_score = max(0.1, min(1.0, self.innovation_score * 0.98 + marketing_bonus))
+
+        # Лояльность падает, если на рынке дефицит консолей (покупатели недовольны)
+        loyalty_penalty = 0.1 * shortage_ratio
+        self.customer_loyalty = max(0.1, min(1.0, self.customer_loyalty * 0.97 + (0.01 - loyalty_penalty)))
+
+    def get_market_multiplier(self) -> float:
+        """Репутация дает буст к привлекательности консоли на рынке"""
+        return 1.0 + (self.quality_perception * 0.2) + (self.customer_loyalty * 0.15)
+
+
 class ConsoleProject:
     def __init__(self, name: str, cpu: dict, gpu: dict, media: dict, margin: float):
         self.name = name
@@ -11,15 +32,13 @@ class ConsoleProject:
         self.media = media
         self.margin = margin
 
-        # Расчет базовых ТТХ
         self.unit_cost = cpu["cost"] + gpu["cost"] + media["cost"]
         self.retail_price = int(self.unit_cost * margin)
         self.hardware_power = (cpu["power"] + gpu["power"]) * media["power_mult"]
 
-        # Фазы R&D pipeline
-        self.phase = "design"  # "design" -> "prototype" -> "testing" -> "ready"
-        self.progress = 0.0  # 0.0 - 100.0%
-        self.quality = 0.50  # Стартовое качество софта (растет на фазе тестирования)
+        self.phase = "design"
+        self.progress = 0.0
+        self.quality = 0.50
 
     def advance_development(self, engineer_points: float):
         if self.phase == "design":
@@ -54,14 +73,18 @@ class PlayerCompany:
         self.released_consoles = []
         self.production_orders = []
 
-        # Система предупреждения банкротства
         self.bankruptcy_months = 0
+        self.reputation = BrandReputation()
 
-        # Технологический стек игрока
+        # Список купленных лицензий на игры
+        self.licensed_games = []
+
+        # Очередь всплывающих уведомлений (text, frames_remaining)
+        self.notifications = []
+
         self.tech_tree = TechTree()
-        self.active_research = None  # Выбранный на данный момент узел ResearchNode
+        self.active_research = None
 
-        # Собственная база созданных чипов (изначально пустая)
         self.custom_cpus = []
         self.custom_gpus = []
 
@@ -75,6 +98,13 @@ class PlayerCompany:
             "warehouse_cost": 0.0,
             "net_profit": 0.0
         }
+
+    def add_notification(self, text: str):
+        """Добавить сообщение на экран на 4 секунды (240 кадров при 60 FPS)"""
+        self.notifications.append([text, 240])
+
+    def update_notifications(self):
+        self.notifications = [[text, f - 1] for text, f in self.notifications if f > 1]
 
     def process_monthly_logistics(self):
         arrived_units = 0
@@ -92,26 +122,19 @@ class PlayerCompany:
         return self.engineers * self.engineer_salary
 
     def advance_research(self) -> float:
-        """Продвигает активное исследование. Возвращает стоимость за ход."""
         if not self.active_research:
             return 0.0
 
         node = self.active_research
-        # Суммарная мощность очков науки
         points_generated = self.engineers * 4.0 * self.diff_settings["research_speed_multiplier"]
-
-        # Необходимое количество очков = месяцы * 10
         total_points_needed = max(10, node.base_months * 10)
-
-        # Ежемесячная стоимость исследования = общая стоимость / месяцы
         monthly_cost = node.base_cost / node.base_months if node.base_months > 0 else 0.0
 
         node.progress_points += points_generated
-
-        # Прогресс в процентах
         percent = (node.progress_points / total_points_needed) * 100.0
         if percent >= 100.0:
             node.researched = True
+            self.add_notification(f"ИССЛЕДОВАНИЕ ЗАВЕРШЕНО: {node.name}")
             self.active_research = None
 
         return monthly_cost
