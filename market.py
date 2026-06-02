@@ -4,9 +4,11 @@ import math
 from config import INFLATION_FACTORS, MARKET_CAPACITY
 from console import Console
 
+
 class Market:
     def __init__(self, events_db: list):
         self.current_year = 1972
+        self.current_month = 1  # 1 - 12
         self.consoles = []
         self.history = []
         self.events_db = events_db
@@ -19,29 +21,30 @@ class Market:
         return INFLATION_FACTORS.get(self.current_year, 2.40)
 
     def get_market_capacity(self) -> int:
-        return MARKET_CAPACITY.get(self.current_year, 18_000_000)
+        # Месячная емкость рынка = годовая / 12
+        annual_cap = MARKET_CAPACITY.get(self.current_year, 18_000_000)
+        return int(annual_cap / 12)
 
     def get_event_for_year(self, year: int):
-        """Находит событие текущего года"""
         for event in self.events_db:
             if event["year"] == year:
                 return event
         return None
 
-    def simulate_year(self) -> dict:
+    def simulate_month(self) -> dict:
+        """Расчет одного месяца рыночного цикла"""
         if self.current_year > 1983:
             return None
 
         inflation = self.get_inflation_factor()
-        base_capacity = self.get_market_capacity()
+        base_monthly_capacity = self.get_market_capacity()
 
-        # Настройки по умолчанию, которые могут измениться под влиянием событий
+        # Параметры по умолчанию под влиянием макро-событий
         capacity_multiplier = 1.0
         library_weight_multiplier = 1.0
         no_buy_utility_modifier = 0.0
         quality_modifier = 0.0
 
-        # Считываем и применяем эффекты текущих событий
         current_event = self.get_event_for_year(self.current_year)
         if current_event:
             self.active_event_info = current_event
@@ -59,48 +62,48 @@ class Market:
         else:
             self.active_event_info = None
 
-        # Финальная емкость рынка с учетом событий
-        capacity = int(base_capacity * capacity_multiplier)
+        capacity = int(base_monthly_capacity * capacity_multiplier)
 
-        active_consoles = [c for c in self.consoles if c.launch_year <= self.current_year]
+        # Вышедшие на рынок консоли
+        active_consoles = []
+        for c in self.consoles:
+            if c.launch_year < self.current_year:
+                active_consoles.append(c)
+            elif c.launch_year == self.current_year and c.launch_month <= self.current_month:
+                active_consoles.append(c)
 
-        # Обновление библиотек игр на рынке
+        # Развитие стороннего софта (библиотек)
         for console in active_consoles:
-            new_games = max(3, int(console.hardware_power * 0.3))
+            # Месячный прирост игр
+            new_games = max(1, int(console.hardware_power * 0.03))
             console.update_library(new_games)
             if quality_modifier != 0.0:
-                # Влияние кризисов на качество библиотек (например, наплыв дешевого софта в 1982)
-                console.library_quality = max(0.1, min(1.0, console.library_quality + quality_modifier))
+                console.library_quality = max(0.1, min(1.0, console.library_quality + (quality_modifier / 12.0)))
 
         if not active_consoles:
             self._record_step(0, {}, capacity)
-            self.current_year += 1
+            self._advance_date()
             return {}
 
         max_power = max(c.hardware_power for c in active_consoles)
 
         utilities = {}
         total_utility = 0.0
-        # Модифицируемая полезность отказа от покупки
         no_buy_utility = max(2.0, 10.0 + no_buy_utility_modifier)
 
         for console in active_consoles:
-            # 1. Цена с учетом инфляции
             real_price = console.get_real_price(inflation)
             price_factor = math.exp(-0.0075 * real_price)
 
-            # 2. Мощность железа с учетом технологического отставания
             power_ratio = console.hardware_power / max_power
             tech_factor = math.log1p(console.hardware_power) * math.sqrt(power_ratio)
 
-            # 3. Игровая библиотека (коэффициент масштабируется макро-событиями картриджей)
             library_factor = math.log1p(console.library_size) * console.library_quality * library_weight_multiplier
 
-            # 4. Реклама
+            # Месячный маркетинг
             real_marketing = console.get_real_marketing(inflation)
-            marketing_factor = math.log1p(real_marketing / 8000.0)
+            marketing_factor = math.log1p(real_marketing / 3000.0)
 
-            # Расчет привлекательности
             utility = (tech_factor * 2.0 + library_factor * 2.5 + marketing_factor * 1.0) * price_factor
             utility = max(0.01, utility)
 
@@ -108,25 +111,45 @@ class Market:
             total_utility += utility
 
         total_pool = total_utility + no_buy_utility
-        yearly_sales = {}
+        monthly_sales = {}
         total_sold = 0
+
+        # Моделирование ИИ-складов (ИИ автоматически держит запас на базе спроса)
+        for console in active_consoles:
+            if not console.is_player:
+                # ИИ «автоматически» пополняет склады под спрос, вычитая расходы
+                console.inventory = int(capacity * 0.4)
 
         for console in active_consoles:
             share = utilities[console] / total_pool
-            sales = int(capacity * share)
+            demand = int(capacity * share)
 
-            console.sales_history[self.current_year] = sales
-            console.revenue_history[self.current_year] = sales * console.price
-            yearly_sales[console] = sales
-            total_sold += sales
+            # Ограничение физическими складскими запасами (Shortage Mechanics)
+            actual_sales = min(demand, console.inventory)
+            console.inventory -= actual_sales
+            console.installed_base += actual_sales
 
-        self._record_step(total_sold, {c.name: sales for c, sales in yearly_sales.items()}, capacity)
-        self.current_year += 1
-        return yearly_sales
+            time_key = f"{self.current_year}_{self.current_month}"
+            console.sales_history[time_key] = actual_sales
+            console.revenue_history[time_key] = actual_sales * console.price
+
+            monthly_sales[console] = actual_sales
+            total_sold += actual_sales
+
+        self._record_step(total_sold, {c.name: sales for c, sales in monthly_sales.items()}, capacity)
+        self._advance_date()
+        return monthly_sales
+
+    def _advance_date(self):
+        self.current_month += 1
+        if self.current_month > 12:
+            self.current_month = 1
+            self.current_year += 1
 
     def _record_step(self, total_sold: int, console_sales: dict, actual_capacity: int):
         self.history.append({
-            "Год": self.current_year,
+            "year": self.current_year,
+            "month": self.current_month,
             "capacity": actual_capacity,
             "inflation": self.get_inflation_factor(),
             "total_sold": total_sold,

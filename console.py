@@ -4,18 +4,25 @@ class Console:
     def __init__(self, name: str, launch_year: int, price: float,
                  hardware_power: float, library_size: int,
                  library_quality: float, marketing_budget: float,
-                 color: tuple, spec_info: dict = None):
+                 color: tuple, spec_info: dict = None, is_player: bool = False):
         self.name = name
         self.launch_year = launch_year
-        self.price = price                      # Номинальная цена продажи ($)
-        self.hardware_power = hardware_power    # Мощность железа
-        self.library_size = library_size        # Начальное кол-во игр
-        self.library_quality = library_quality  # Качество игр (0.1 - 1.0)
-        self.marketing_budget = marketing_budget # Номинальный маркетинг ($)
+        self.launch_month = 1  # Месяц старта продаж (1-12)
+        self.price = price  # Розничная цена ($)
+        self.hardware_power = hardware_power  # Индекс мощности
+        self.library_size = library_size  # Размер библиотеки игр
+        self.library_quality = library_quality  # Среднее качество игр
+        self.marketing_budget = marketing_budget  # Ежемесячный (!) бюджет на рекламу
         self.color = color
-        self.spec_info = spec_info or {}        # Техническая спецификация консоли (Имена чипов)
+        self.spec_info = spec_info or {}
 
-        self.sales_history = {}
+        # Новые поля Менеджмента (Stage 3)
+        self.is_player = is_player
+        self.inventory = 0  # Готовая продукция на складе
+        self.installed_base = 0  # Установленная база у игроков
+        self.unit_cost = self.spec_info.get("cost", price * 0.45)  # Себестоимость
+
+        self.sales_history = {}  # Будет хранить историю в формате "ГОД_МЕСЯЦ"
         self.revenue_history = {}
 
     def get_real_price(self, inflation_factor: float) -> float:
