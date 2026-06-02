@@ -1,0 +1,44 @@
+[
+    {
+        "year": 1972,
+        "name": "Рождение индустрии",
+        "desc": "Выход Magnavox Odyssey. Видеоигры официально пришли в дома простых обывателей.",
+        "effect_type": "market_capacity_multiplier",
+        "effect_value": 1.0
+    },
+    {
+        "year": 1975,
+        "name": "Бум домашних Pong-систем",
+        "desc": "Интерес к домашним играм взлетает благодаря Pong от Atari. Базовая емкость рынка удваивается.",
+        "effect_type": "market_capacity_multiplier",
+        "effect_value": 2.0
+    },
+    {
+        "year": 1977,
+        "name": "Эра картриджей",
+        "desc": "Появление сменных игр меняет правила игры. Важность библиотеки игр удваивается.",
+        "effect_type": "library_weight_multiplier",
+        "effect_value": 2.0
+    },
+    {
+        "year": 1980,
+        "name": "Лихорадка Space Invaders",
+        "desc": "Безумный успех аркадных портов дома. Доля людей, отказывающихся от покупки консоли, снижается.",
+        "effect_type": "no_buy_penalty",
+        "effect_value": -5.0
+    },
+    {
+        "year": 1982,
+        "name": "Кризис перенасыщения",
+        "desc": "Рынок забит плохими играми сторонних студий. Среднее качество библиотек снижается на 15%.",
+        "effect_type": "library_quality_penalty",
+        "effect_value": -0.15
+    },
+    {
+        "year": 1983,
+        "name": "Великий Крах Видеоигр 1983",
+        "desc": "Крах доверия к индустрии. Емкость рынка катастрофически обваливается на 85%!",
+        "effect_type": "market_capacity_multiplier",
+        "effect_value": 0.15
+    }
+]
