@@ -3,7 +3,6 @@
 from tech_tree import TechTree
 
 class CustomChipProject:
-    """Проект разработки собственного чипа (CPU или GPU) в R&D"""
     def __init__(self, name: str, category: str, power: float, cost: float, rd_cost: float, dev_months: int):
         self.name = name
         self.category = category
@@ -18,7 +17,6 @@ class CustomChipProject:
 
 
 class FirstPartyGameProject:
-    """Проект собственной игры во время R&D консоли"""
     def __init__(self, name: str, cost: float, dev_months: int):
         self.name = name
         self.cost = cost
@@ -30,7 +28,6 @@ class FirstPartyGameProject:
 
 
 class PortingProject:
-    """Проект портирования сторонней игры на конкретную консоль"""
     def __init__(self, game, console, double_cost: bool):
         self.game = game
         self.console = console
@@ -108,8 +105,7 @@ class PlayerCompany:
         self.bankruptcy_months = 0
         self.reputation = BrandReputation()
 
-        # Режим ручного ввода клавиатуры для кастомизации названий
-        self.naming_mode = None  # None, "chip", "console"
+        self.naming_mode = None
         self.input_buffer = ""
 
         self.active_chip_project = None
@@ -122,6 +118,9 @@ class PlayerCompany:
 
         self.custom_cpus = []
         self.custom_gpus = []
+
+        self.signed_studios = []  # Список эксклюзивных контрактов со студиями
+        self.studio_exclusive_timer = 0  # Счётчик для регулярного выпуска эксклюзивных игр
 
         self.notifications = []
         self.tech_tree = TechTree()

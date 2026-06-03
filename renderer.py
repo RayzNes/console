@@ -38,7 +38,7 @@ btn_sub_res = pygame.Rect(45, 110, 180, 30)
 btn_sub_design = pygame.Rect(235, 110, 220, 30)
 btn_sub_console = pygame.Rect(465, 110, 180, 30)
 
-# Конструктор чипов - разнесенные координаты
+# Конструктор чипов
 btn_chip_type = pygame.Rect(45, 200, 250, 35)
 btn_chip_name = pygame.Rect(45, 250, 250, 35)
 btn_chip_core = pygame.Rect(45, 300, 250, 35)
@@ -50,14 +50,7 @@ btn_chip_build = pygame.Rect(45, 510, 250, 45)
 btn_chip_license_cpu = pygame.Rect(320, 200, 250, 35)
 btn_chip_license_gpu = pygame.Rect(320, 250, 250, 35)
 
-# Сборщик Консолей - Полная защита от наложений [1]
-btn_console_cpu = pygame.Rect(45, 200, 350, 35)
-btn_console_gpu = pygame.Rect(45, 250, 350, 35)
-btn_console_media = pygame.Rect(45, 300, 350, 35)
-
-# Кнопки смещены вниз на y=390, чтобы освободить текстовую метку на y=350 [1]
-btn_console_margin_dec = pygame.Rect(45, 380, 50, 35)
-btn_console_margin_inc = pygame.Rect(110, 380, 50, 35)
+# Сборщик Консолей
 btn_console_name = pygame.Rect(45, 440, 350, 35)
 btn_console_launch = pygame.Rect(45, 500, 350, 45)
 btn_fp_game_create = pygame.Rect(45, 560, 350, 40)
@@ -97,7 +90,6 @@ def draw_notifications(screen, player):
 
 
 def draw_chart(surface, x, y, w, h, market_history, consoles):
-    """Исправлен вылет при пустой истории - рисует стартовую точку [4]"""
     chart_rect = pygame.Rect(x, y, w, h)
     pygame.draw.rect(surface, PANEL_COLOR, chart_rect)
     pygame.draw.rect(surface, BORDER_COLOR, chart_rect, 1)
@@ -129,7 +121,6 @@ def draw_chart(surface, x, y, w, h, market_history, consoles):
 
     max_index = len(market_history) - 1
 
-    # Защита: Отрисовка одной точки при старте [4]
     if max_index == 0:
         data = list(months_data.values())[0]
         x_pos = graph_rect.x + graph_rect.width / 2
@@ -138,7 +129,6 @@ def draw_chart(surface, x, y, w, h, market_history, consoles):
         draw_text(surface, f"Емкость: {data['capacity']:,}", font_body, TEXT_WHITE, int(x_pos) + 10, int(y_pos) - 10)
         return
 
-    # Пунктир емкости рынка
     prev_point = None
     for month_key, data in months_data.items():
         x_pos = graph_rect.x + (data["index"] / max_index) * graph_rect.width
@@ -148,7 +138,6 @@ def draw_chart(surface, x, y, w, h, market_history, consoles):
             draw_dashed_line(surface, prev_point, point, TEXT_MUTED, 2)
         prev_point = point
 
-    # Продажи систем
     console_data = {}
     for console in consoles:
         console_data[console.name] = []
@@ -215,9 +204,10 @@ def render_market_tab(screen, market, auto_play, font_title, font_body, btn_step
 
     draw_chart(screen, 30, 120, 1164, 300, market.history, market.consoles)
 
+    # Левая интерактивная панель управления ценой и маркетингом
     pygame.draw.rect(screen, PANEL_COLOR, (30, 440, 280, 280))
     pygame.draw.rect(screen, BORDER_COLOR, (30, 440, 280, 280), 1)
-    draw_text(screen, "СЕНСОРНЫЙ КОНТРОЛЬ", font_title, TEXT_WHITE, 45, 455)
+    draw_text(screen, "ПАНЕЛЬ УПРАВЛЕНИЯ", font_title, TEXT_WHITE, 45, 455)
 
     draw_button(screen, btn_step, "ШАГ ХОДА (+1 Месяц)", font_body, PANEL_COLOR, BORDER_COLOR, AMBER)
     auto_color = GREEN if auto_play else RED
@@ -225,29 +215,80 @@ def render_market_tab(screen, market, auto_play, font_title, font_body, btn_step
     draw_button(screen, btn_auto, auto_text, font_body, PANEL_COLOR, BORDER_COLOR, auto_color)
     draw_button(screen, btn_reset, "СБРОСИТЬ ИГРУ", font_body, PANEL_COLOR, RED, TEXT_WHITE)
 
+    # Ценовые войны и Смена маркетинга (если у игрока выпущена консоль)
+    if player.released_consoles:
+        p_con = player.released_consoles[0]
+        # Изменение цены (Ценовые войны)
+        draw_text(screen, f"Цена: ${p_con.price} (Баз: ${p_con.original_price})", font_body, AMBER, 45, 620)
+        pygame.draw.rect(screen, PANEL_COLOR, (45, 640, 110, 30))
+        draw_button(screen, pygame.Rect(45, 640, 50, 30), "-$10", font_body, PANEL_COLOR, RED, RED)
+        draw_button(screen, pygame.Rect(105, 640, 50, 30), "+$10", font_body, PANEL_COLOR, GREEN, GREEN)
+
+        # Тип маркетинга
+        m_modes = ["none", "guerrilla", "print", "tv"]
+        curr_idx = m_modes.index(getattr(p_con, "marketing_type", "print"))
+        next_mode = m_modes[(curr_idx + 1) % len(m_modes)]
+        from config import MARKETING_TYPES
+        m_info = MARKETING_TYPES.get(p_con.marketing_type, {"name": "Нет"})
+        draw_text(screen, f"Маркетинг: {m_info['name']}", font_body, TEXT_WHITE, 165, 620)
+        draw_button(screen, pygame.Rect(165, 640, 130, 30), "Сменить рекламу", font_body, PANEL_COLOR, BORDER_COLOR,
+                    AMBER)
+
     if player.bankruptcy_months > 0:
         draw_text(screen, f"КРИЗИС! БАЛАНС < 0!", font_body, RED, 45, 680)
         draw_text(screen, f"Банкротство через {4 - player.bankruptcy_months} мес.", font_body, RED, 45, 695)
 
-    # Список систем
+    # СРАВНИТЕЛЬНАЯ ТАБЛИЦА ХАРАКТЕРИСТИК КОНСОЛЕЙ
     pygame.draw.rect(screen, PANEL_COLOR, (330, 440, 864, 280))
     pygame.draw.rect(screen, BORDER_COLOR, (330, 440, 864, 280), 1)
-    draw_text(screen, "АКТИВНЫЕ СИСТЕМЫ НА РЫНКЕ", font_title, TEXT_WHITE, 345, 455)
-    pygame.draw.line(screen, BORDER_COLOR, (345, 480), (1180, 480), 1)
+    draw_text(screen, "СРАВНИТЕЛЬНАЯ ТАБЛИЦА КОНСОЛЕЙ НА РЫНКЕ", font_title, AMBER, 345, 455)
 
-    col_offset_x = 345
-    for console in market.consoles:
-        is_active = console.launch_year < market.current_year or (
-                console.launch_year == market.current_year and console.launch_month <= market.current_month)
+    # Заголовки колонок
+    col_headers = [
+        ("Название", 345),
+        ("Цена", 540),
+        ("Мощность", 620),
+        ("Игр в либ.", 710),
+        ("Качество", 800),
+        ("Реклама", 880),
+        ("Инсталл-База", 1000),
+        ("Склад", 1110)
+    ]
+    for header, x_pos in col_headers:
+        draw_text(screen, header, font_body, TEXT_MUTED, x_pos, 485)
+
+    pygame.draw.line(screen, BORDER_COLOR, (345, 502), (1180, 502), 1)
+
+    # Вывод строк таблицы
+    active_consoles = []
+    for c in market.consoles:
+        is_active = c.launch_year < market.current_year or (
+                c.launch_year == market.current_year and c.launch_month <= market.current_month)
         if is_active:
-            name_label = f"{console.name} [ИГРОК]" if console.is_player else console.name
-            draw_text(screen, name_label, font_title, console.color, col_offset_x, 500)
-            draw_text(screen, f"Инсталл-база: {console.installed_base:,}", font_body, TEXT_WHITE, col_offset_x, 530)
-            draw_text(screen, f"На складе: {console.inventory:,} шт.", font_body, TEXT_WHITE, col_offset_x, 555)
-            draw_text(screen, f"Сила чипов: {console.hardware_power:.1f} HW", font_body, TEXT_MUTED, col_offset_x, 580)
-            col_offset_x += 210
-            if col_offset_x > 1100:
-                break
+            active_consoles.append(c)
+
+    offset_y = 510
+    for con in active_consoles[:5]:  # Вывод до 5 систем
+        row_color = con.color if con.is_player else TEXT_WHITE
+        bg_highlight = (24, 28, 40) if con.is_player else PANEL_COLOR
+
+        # Подложка под строку игрока
+        if con.is_player:
+            pygame.draw.rect(screen, bg_highlight, (340, offset_y - 2, 844, 22))
+
+        from config import MARKETING_TYPES
+        m_name = MARKETING_TYPES.get(con.marketing_type, {"name": "Нет"})["name"]
+
+        draw_text(screen, con.name[:18], font_body, row_color, 345, offset_y)
+        draw_text(screen, f"${con.price}", font_body, TEXT_WHITE, 540, offset_y)
+        draw_text(screen, f"{con.hardware_power:.1f} HW", font_body, TEXT_WHITE, 620, offset_y)
+        draw_text(screen, f"{con.library_size}", font_body, TEXT_WHITE, 710, offset_y)
+        draw_text(screen, f"{con.library_quality * 100:.0f}%", font_body, TEXT_WHITE, 800, offset_y)
+        draw_text(screen, m_name, font_body, TEXT_MUTED, 880, offset_y)
+        draw_text(screen, f"{con.installed_base:,}", font_body, TEXT_WHITE, 1000, offset_y)
+        draw_text(screen, f"{con.inventory:,} шт.", font_body, row_color, 1110, offset_y)
+
+        offset_y += 24
 
 
 def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, margin,
@@ -255,8 +296,7 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
                   active_designer_type, chip_name, designer_core_idx, designer_cache_idx, designer_process_idx,
                   designer_package_idx,
                   active_chip_project, active_game_projects, console_name,
-                  licensing_selector_type, current_year):
-    """Исправленный и расширенный R&D модуль без наложения текстов и кнопок"""
+                  licensing_selector_type, current_year, drag_manager=None):
     draw_text(screen, "ОТДЕЛ ИССЛЕДОВАНИЙ И РАЗРАБОТОК (R&D)", font_title, AMBER, 30, 70)
 
     # Вкладки R&D
@@ -277,39 +317,52 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
     draw_button(screen, btn_hire, "НАНЯТЬ (+1)", font_body, PANEL_COLOR, GREEN, GREEN)
     draw_button(screen, btn_fire, "УВОЛИТЬ (-1)", font_body, PANEL_COLOR, RED, RED)
 
-    # 1. ТЕХНОЛОГИЧЕСКИЕ ИССЛЕДОВАНИЯ
+    # 1. ТЕХНОЛОГИЧЕСКИЕ ИССЛЕДОВАНИЯ (ВИЗУАЛЬНОЕ ДЕРЕВО)
     if sub_tab == "research":
         pygame.draw.rect(screen, PANEL_COLOR, (30, 150, 750, 540))
         pygame.draw.rect(screen, BORDER_COLOR, (30, 150, 750, 540), 1)
-        draw_text(screen, "ДОСТУПНЫЕ ТЕХНОЛОГИИ ДЛЯ ИЗУЧЕНИЯ", font_title, TEXT_WHITE, 45, 165)
+        draw_text(screen, "ВИЗУАЛЬНАЯ СЕТКА ТЕХНОЛОГИЙ (КЛИК ДЛЯ ИЗУЧЕНИЯ)", font_title, AMBER, 45, 165)
 
-        # Передаем реальный динамический год вместо хардкода [1]
-        avail_nodes = player.tech_tree.get_available_research(current_year)
-        offset_y = 205
+        # Отрисовка связей векторов
+        for node in player.tech_tree.nodes.values():
+            start_pos = (30 + node.coords[0] + 55, 150 + node.coords[1] + 15)
+            for prereq_id in node.prerequisites:
+                prereq_node = player.tech_tree.nodes[prereq_id]
+                end_pos = (30 + prereq_node.coords[0] + 55, 150 + prereq_node.coords[1] + 15)
+                line_color = GREEN if prereq_node.researched else TEXT_MUTED
+                pygame.draw.line(screen, line_color, start_pos, end_pos, 2)
 
-        for i, node in enumerate(avail_nodes[:10]):
-            btn_rect = pygame.Rect(45, offset_y, 500, 25)
+        # Отрисовка нод (кнопок)
+        for node in player.tech_tree.nodes.values():
+            x, y = 30 + node.coords[0], 150 + node.coords[1]
+            node_rect = pygame.Rect(x, y, 110, 35)
+
             is_active = (player.active_research == node)
-            bg = GREEN if is_active else PANEL_COLOR
-            text_color = BG_COLOR if is_active else TEXT_WHITE
-
-            # Подсветка блокировки, если лаборатория занята [9]
-            if player.active_research and not is_active:
+            if node.researched:
+                bg = GREEN
+                txt_col = BG_COLOR
+            elif is_active:
+                bg = BLUE
+                txt_col = TEXT_WHITE
+            elif node.year_available > current_year:
                 bg = (10, 12, 16)
-                text_color = (60, 65, 80)
+                txt_col = RED
+            else:
+                # Проверим, открыты ли пререквизиты
+                unlocked = all(player.tech_tree.nodes[p].researched for p in node.prerequisites)
+                bg = AMBER if unlocked else (25, 25, 30)
+                txt_col = BG_COLOR if unlocked else TEXT_MUTED
 
-            draw_button(screen, btn_rect, f"{node.name} | Cost: ${node.base_cost:,} | {node.base_months} мес.",
-                        font_body, bg, BORDER_COLOR, text_color)
-            offset_y += 30
+            draw_button(screen, node_rect, node.name[:14], font_body, bg, BORDER_COLOR, txt_col)
 
         if player.active_research:
             node = player.active_research
-            draw_text(screen, f"Изучается: {node.name}", font_large, AMBER, 45, 540)
+            draw_text(screen, f"Изучается: {node.name}", font_large, AMBER, 45, 620)
             pts_needed = max(10, node.base_months * 10)
             percent = min(100.0, (node.progress_points / pts_needed) * 100.0)
-            pygame.draw.rect(screen, BG_COLOR, (45, 575, 500, 25))
-            pygame.draw.rect(screen, GREEN, (45, 575, int(500 * (percent / 100.0)), 25))
-            draw_text(screen, f"Прогресс: {percent:.1f}%", font_body, TEXT_WHITE, 240, 610)
+            pygame.draw.rect(screen, BG_COLOR, (45, 650, 500, 20))
+            pygame.draw.rect(screen, GREEN, (45, 650, int(500 * (percent / 100.0)), 20))
+            draw_text(screen, f"Прогресс: {percent:.1f}%", font_body, TEXT_WHITE, 560, 650)
 
     # 2. КОНСТРУКТОР ЧИПОВ И ЛИЦЕНЗИРОВАНИЕ
     elif sub_tab == "designer":
@@ -328,7 +381,6 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
         else:
             draw_text(screen, "СОБСТВЕННЫЙ R&D ЧИПА (ДОРОГО И ДОЛГО)", font_title, AMBER, 45, 210)
 
-            # Отрисовка кнопок с выделением при вводе имени
             type_label = f"Тип чипа: {active_designer_type.upper()}"
             draw_button(screen, btn_chip_type, type_label, font_body, PANEL_COLOR, BORDER_COLOR, TEXT_WHITE)
 
@@ -385,14 +437,12 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
             draw_button(screen, btn_chip_build, "НАЧАТЬ РАЗРАБОТКУ ЧИПА (R&D)", font_body, PANEL_COLOR, b_color,
                         TEXT_WHITE)
 
-            # Выкуп лицензий на сторонние чипы (Перенос заголовка на y=170) [1]
             draw_text(screen, "ЛИЦЕНЗИРОВАНИЕ СТОРОННИХ ЧИПОВ", font_title, GREEN, 350, 165)
             draw_button(screen, btn_chip_license_cpu, "Выбрать CPU для лицензии", font_body, PANEL_COLOR, BORDER_COLOR,
                         TEXT_WHITE)
             draw_button(screen, btn_chip_license_gpu, "Выбрать GPU для лицензии", font_body, PANEL_COLOR, BORDER_COLOR,
                         TEXT_WHITE)
 
-            # Отрисовка списка выбора лицензий чипов справа [12]
             if licensing_selector_type:
                 from config import HISTORICAL_CPUS, HISTORICAL_GPUS
                 list_chips = HISTORICAL_CPUS if licensing_selector_type == "cpu" else HISTORICAL_GPUS
@@ -409,7 +459,6 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
                     draw_text(screen, f"Цена: ${item['license_fee']:,} | Unit: ${item['cost']}", font_body, TEXT_MUTED,
                               665, lic_offset_y + 15)
 
-                    # Кнопка Купить
                     buy_rect = pygame.Rect(1020, lic_offset_y, 150, 30)
                     already_bought = item["name"] in [x["name"] for x in (
                         player.licensed_cpus if licensing_selector_type == "cpu" else player.licensed_gpus)]
@@ -422,48 +471,84 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
 
                     lic_offset_y += 50
 
-    # 3. СБОРКА СИСТЕМ (CONSOLE BUILDER) - Исправлены наложения, цена полностью видна [1]
+    # 3. СБОРКА СИСТЕМ (DRAG AND DROP КОНСТРУКТОР)
     elif sub_tab == "console":
         pygame.draw.rect(screen, PANEL_COLOR, (30, 150, 750, 540))
         pygame.draw.rect(screen, BORDER_COLOR, (30, 150, 750, 540), 1)
 
         if not player.active_project:
-            draw_text(screen, "СБОРКА КОНСОЛИ ИЗ ДОСТУПНОЙ БАЗЫ ЧИПОВ", font_large, AMBER, 45, 165)
+            draw_text(screen, "ПЕРЕТАЩИТЕ (DRAG-AND-DROP) КОМПОНЕНТЫ В ГНЕЗДА", font_large, AMBER, 45, 165)
 
             all_cpus = player.custom_cpus + player.licensed_cpus
             all_gpus = player.custom_gpus + player.licensed_gpus
             all_media = components_db["media"]
 
-            if not all_cpus or not all_gpus:
-                draw_text(screen, "Внимание! У вас нет готовых чипов.", font_title, RED, 45, 220)
-                draw_text(screen, "Сначала разработайте или лицензируйте их во вкладке 2.", font_body, TEXT_WHITE, 45,
-                          250)
-            else:
-                cpu = all_cpus[sel_cpu % len(all_cpus)]
-                gpu = all_gpus[sel_gpu % len(all_gpus)]
-                med = all_media[sel_media % len(all_media)]
+            # Гнезда (Targets) для дропа
+            slot_cpu_rect = pygame.Rect(45, 210, 320, 60)
+            slot_gpu_rect = pygame.Rect(45, 285, 320, 60)
+            slot_media_rect = pygame.Rect(45, 360, 320, 60)
 
+            # Получение текущих выбранных компонентов по индексам
+            cpu = all_cpus[sel_cpu % len(all_cpus)] if all_cpus else None
+            gpu = all_gpus[sel_gpu % len(all_gpus)] if all_gpus else None
+            med = all_media[sel_media % len(all_media)] if all_media else None
+
+            # Прорисовка гнезд
+            cpu_border = AMBER if (drag_manager and drag_manager.get('type') == 'cpu') else BORDER_COLOR
+            pygame.draw.rect(screen, (22, 26, 40), slot_cpu_rect, border_radius=4)
+            pygame.draw.rect(screen, cpu_border, slot_cpu_rect, width=2, border_radius=4)
+            cpu_lbl = f"CPU: {cpu['name']} ({cpu['power']} HW)" if cpu else "Перетащите CPU сюда"
+            draw_text(screen, cpu_lbl, font_body, TEXT_WHITE, 60, 230)
+
+            gpu_border = AMBER if (drag_manager and drag_manager.get('type') == 'gpu') else BORDER_COLOR
+            pygame.draw.rect(screen, (22, 26, 40), slot_gpu_rect, border_radius=4)
+            pygame.draw.rect(screen, gpu_border, slot_gpu_rect, width=2, border_radius=4)
+            gpu_lbl = f"GPU: {gpu['name']} ({gpu['power']} HW)" if gpu else "Перетащите GPU сюда"
+            draw_text(screen, gpu_lbl, font_body, TEXT_WHITE, 60, 305)
+
+            med_border = AMBER if (drag_manager and drag_manager.get('type') == 'media') else BORDER_COLOR
+            pygame.draw.rect(screen, (22, 26, 40), slot_media_rect, border_radius=4)
+            pygame.draw.rect(screen, med_border, slot_media_rect, width=2, border_radius=4)
+            med_lbl = f"Носитель: {med['name']}" if med else "Перетащите Носитель сюда"
+            draw_text(screen, med_lbl, font_body, TEXT_WHITE, 60, 380)
+
+            # Пул доступных компонентов для перетаскивания (справа)
+            pygame.draw.rect(screen, (10, 12, 18), (400, 210, 350, 310))
+            pygame.draw.rect(screen, BORDER_COLOR, (400, 210, 350, 310), 1)
+            draw_text(screen, "ДОСТУПНЫЕ ПЛАТЫ ДЛЯ ПЕРЕНОСА:", font_body, AMBER, 415, 220)
+
+            # Создадим список элементов для отрисовки в пуле
+            items_to_render = []
+            for idx, c in enumerate(all_cpus):
+                items_to_render.append(
+                    {"type": "cpu", "name": f"CPU: {c['name'][:14]}", "index": idx, "cost": c["cost"]})
+            for idx, g in enumerate(all_gpus):
+                items_to_render.append(
+                    {"type": "gpu", "name": f"GPU: {g['name'][:14]}", "index": idx, "cost": g["cost"]})
+            for idx, m in enumerate(all_media):
+                items_to_render.append(
+                    {"type": "media", "name": f"Media: {m['name'][:14]}", "index": idx, "cost": m["cost"]})
+
+            offset_card_y = 245
+            for item in items_to_render[:6]:  # Ограничиваем список
+                card_rect = pygame.Rect(415, offset_card_y, 320, 35)
+                pygame.draw.rect(screen, PANEL_COLOR, card_rect, border_radius=4)
+                pygame.draw.rect(screen, BORDER_COLOR, card_rect, width=1, border_radius=4)
+                draw_text(screen, f"{item['name']} | ${item['cost']}", font_body, TEXT_WHITE, 430, offset_card_y + 10)
+                offset_card_y += 42
+
+            # Наценка и выпуск
+            if cpu and gpu and med:
                 unit_cost = cpu["cost"] + gpu["cost"] + med["cost"]
-                if "Floppy" in med["name"]:
-                    unit_cost += 80.0
-
+                if "Floppy" in med["name"]: unit_cost += 80.0
                 retail_p = int(unit_cost * margin)
-                power = cpu["power"] + gpu["power"]
+                power = (cpu["power"] + gpu["power"]) * med["power_mult"]
 
-                draw_button(screen, btn_console_cpu, f"Процессор: {cpu['name']} ({cpu['power']} HW | ${cpu['cost']})",
-                            font_body, PANEL_COLOR, BORDER_COLOR, TEXT_WHITE)
-                draw_button(screen, btn_console_gpu, f"Видеочип: {gpu['name']} ({gpu['power']} HW | ${gpu['cost']})",
-                            font_body, PANEL_COLOR, BORDER_COLOR, TEXT_WHITE)
-                draw_button(screen, btn_console_media, f"Носитель: {med['name']} (${med['cost']})", font_body,
-                            PANEL_COLOR, BORDER_COLOR, TEXT_WHITE)
-
-                # Текстовая метка на y=350 полностью разнесена с кнопками на y=380 [1]
                 draw_text(screen, f"Текущая Наценка: {margin:.1f}x  |  Розничная цена: ${retail_p}", font_body,
-                          TEXT_WHITE, 45, 350)
-                draw_button(screen, btn_console_margin_dec, "-", font_title, PANEL_COLOR, BORDER_COLOR, RED)
-                draw_button(screen, btn_console_margin_inc, "+", font_title, PANEL_COLOR, BORDER_COLOR, GREEN)
+                          TEXT_WHITE, 45, 435)
+                draw_button(screen, pygame.Rect(45, 455, 50, 30), "-", font_title, PANEL_COLOR, BORDER_COLOR, RED)
+                draw_button(screen, pygame.Rect(110, 455, 50, 30), "+", font_title, PANEL_COLOR, BORDER_COLOR, GREEN)
 
-                # Выбор имени консоли
                 border_color = AMBER if player.naming_mode == "console" else BORDER_COLOR
                 name_label = f"Имя консоли: {console_name}" if player.naming_mode != "console" else f"Ввод: {player.input_buffer}_"
                 draw_button(screen, btn_console_name, name_label, font_body, PANEL_COLOR, border_color, TEXT_WHITE)
@@ -472,6 +557,14 @@ def render_rd_tab(screen, player, components_db, sel_cpu, sel_gpu, sel_media, ma
                           TEXT_MUTED, 45, 520)
                 draw_button(screen, btn_console_launch, "ЗАПУСТИТЬ КОНСОЛЬ В ПРОИЗВОДСТВО", font_title, PANEL_COLOR,
                             AMBER, AMBER)
+
+            # Прорисовка тащащегося элемента поверх всего
+            if drag_manager and drag_manager.get('active'):
+                mx, my = pygame.mouse.get_pos()
+                drag_rect = pygame.Rect(mx - 80, my - 15, 160, 30)
+                pygame.draw.rect(screen, AMBER, drag_rect, border_radius=4)
+                draw_text(screen, drag_manager['name'][:18], font_body, BG_COLOR, mx - 70, my - 7)
+
         else:
             project = player.active_project
             draw_text(screen, f"В РАЗРАБОТКЕ: {project.name}", font_large, AMBER, 45, 165)
@@ -558,73 +651,112 @@ def render_finance_tab(screen, player, font_title, font_body, font_large):
     draw_text(screen, f"${fin['net_profit']:,.2f}", font_large, profit_color, 400, 500)
 
 
-def render_licenses_tab(screen, player, games_list, current_year, font_large, font_title, font_body):
-    """СТРАНИЦА 5: Игры и Лицензирование стороннего ПО с выбором консоли [3]"""
-    draw_text(screen, "ЛИЦЕНЗИРОВАНИЕ СТОРОННИХ ИГРОВЫХ ХИТОВ (GAME LICENSING)", font_title, AMBER, 30, 70)
-    draw_text(screen, "Портируйте игры сторонних студий, чтобы поднять роялти. Портирование занимает 2 месяца!",
-              font_body, TEXT_MUTED, 30, 95)
+def render_licenses_tab(screen, player, games_list, current_year, font_large, font_title, font_body, sub_tab="games"):
+    draw_text(screen, "ЛИЦЕНЗИРОВАНИЕ И ЭКСКЛЮЗИВНЫЕ КОНТРАКТЫ", font_title, AMBER, 30, 70)
 
-    offset_y = 130
-    year_games = [g for g in games_list if g.year_available == current_year]
+    # Кнопки переключения подвкладок
+    btn_games = pygame.Rect(30, 100, 200, 30)
+    btn_studios = pygame.Rect(240, 100, 200, 30)
+    draw_button(screen, btn_games, "СТОРОННИЕ ИГРЫ", font_body, AMBER if sub_tab == "games" else PANEL_COLOR,
+                BORDER_COLOR, TEXT_WHITE)
+    draw_button(screen, btn_studios, "КОНТРАКТЫ СО СТУДИЯМИ", font_body, AMBER if sub_tab == "studios" else PANEL_COLOR,
+                BORDER_COLOR, TEXT_WHITE)
 
-    # Счётчик портов в процессе R&D
-    if player.active_ports:
-        draw_text(screen, "АКТИВНЫЕ ПОРТЫ В РАЗРАБОТКЕ (2 МЕСЯЦА):", font_title, AMBER, 750, 130)
-        port_offset_y = 160
-        for p in player.active_ports:
-            draw_text(screen, f"- {p.game.name} -> {p.console.name} (осталось {p.months_left} мес.)", font_body,
-                      TEXT_WHITE, 750, port_offset_y)
-            port_offset_y += 20
+    if sub_tab == "games":
+        offset_y = 145
+        year_games = [g for g in games_list if g.year_available == current_year]
 
-    if not year_games:
-        draw_text(screen, "В этом году новых предложений от сторонних студий нет.", font_large, TEXT_MUTED, 45, 150)
-        return
+        if player.active_ports:
+            draw_text(screen, "АКТИВНЫЕ ПОРТЫ В РАЗРАБОТКЕ (2 МЕСЯЦА):", font_title, AMBER, 750, 145)
+            port_offset_y = 175
+            for p in player.active_ports:
+                draw_text(screen, f"- {p.game.name} -> {p.console.name} (ост. {p.months_left} мес.)", font_body,
+                          TEXT_WHITE, 750, port_offset_y)
+                port_offset_y += 20
 
-    # Если у игрока нет выпущенных консолей
-    if not player.released_consoles:
-        draw_text(screen, "У вас нет запущенных на рынке систем. Лицензирование заблокировано.", font_large, RED, 45,
-                  150)
-        return
+        if not year_games:
+            draw_text(screen, "В этом году новых предложений от сторонних студий нет.", font_large, TEXT_MUTED, 45, 180)
+            return
 
-    target_console = player.released_consoles[0]
+        if not player.released_consoles:
+            draw_text(screen, "У вас нет запущенных на рынке систем. Лицензирование заблокировано.", font_large, RED,
+                      45, 180)
+            return
 
-    # Проверка на наличие у консоли сменных картриджей/носителей данных
-    is_programmable = target_console.spec_info.get("is_programmable", False)
+        target_console = player.released_consoles[0]
+        is_programmable = target_console.spec_info.get("is_programmable", False)
 
-    for g in year_games:
-        pygame.draw.rect(screen, PANEL_COLOR, (30, offset_y, 700, 80))
-        pygame.draw.rect(screen, BORDER_COLOR, (30, offset_y, 700, 80), 1)
+        for g in year_games:
+            pygame.draw.rect(screen, PANEL_COLOR, (30, offset_y, 700, 80))
+            pygame.draw.rect(screen, BORDER_COLOR, (30, offset_y, 700, 80), 1)
 
-        draw_text(screen, f"{g.name} ({g.year_available} г.)", font_title, AMBER, 45, offset_y + 10)
-        draw_text(screen, g.desc, font_body, TEXT_WHITE, 45, offset_y + 30)
-        draw_text(screen, f"Мин. Мощность: {g.min_power} HW  |  Буст Роялти: +${g.base_royalty:.2f}/мес", font_body,
-                  TEXT_MUTED, 45, offset_y + 55)
+            draw_text(screen, f"{g.name} ({g.year_available} г.)", font_title, AMBER, 45, offset_y + 10)
+            draw_text(screen, g.desc, font_body, TEXT_WHITE, 45, offset_y + 30)
+            draw_text(screen, f"Мин. Мощность: {g.min_power} HW  |  Буст Роялти: +${g.base_royalty:.2f}/мес", font_body,
+                      TEXT_MUTED, 45, offset_y + 55)
 
-        btn_rect = pygame.Rect(540, offset_y + 20, 180, 40)
+            btn_rect = pygame.Rect(540, offset_y + 20, 180, 40)
 
-        # Если игра уже куплена или портируется
-        is_porting = any(p.game.name == g.name for p in player.active_ports)
-        is_acquired = g.acquired_by == 'player' or any(l_game.name == g.name for l_game in player.licensed_games)
+            is_porting = any(p.game.name == g.name for p in player.active_ports)
+            is_acquired = g.acquired_by == 'player' or any(l_game.name == g.name for l_game in player.licensed_games)
 
-        if is_acquired:
-            draw_button(screen, btn_rect, "ЛИЦЕНЗИРОВАНО", font_body, GREEN, GREEN, BG_COLOR)
-        elif is_porting:
-            draw_button(screen, btn_rect, "ПОРТИРУЕТСЯ...", font_body, PANEL_COLOR, BLUE, BLUE)
-        elif g.acquired_by is not None:
-            draw_button(screen, btn_rect, f"У ИИ ({g.acquired_by})", font_body, PANEL_COLOR, RED, RED)
-        elif not is_programmable:
-            draw_button(screen, btn_rect, "НЕТ КАРТРИДЖЕЙ!", font_body, PANEL_COLOR, RED, RED)
-        else:
-            cost_total = g.license_cost
-            is_weak = target_console.hardware_power < g.min_power
-            if is_weak:
-                cost_total *= 2.0
+            if is_acquired:
+                draw_button(screen, btn_rect, "ЛИЦЕНЗИРОВАНО", font_body, GREEN, GREEN, BG_COLOR)
+            elif is_porting:
+                draw_button(screen, btn_rect, "ПОРТИРУЕТСЯ...", font_body, PANEL_COLOR, BLUE, BLUE)
+            elif g.acquired_by is not None:
+                draw_button(screen, btn_rect, f"У ИИ ({g.acquired_by})", font_body, PANEL_COLOR, RED, RED)
+            elif not is_programmable:
+                draw_button(screen, btn_rect, "НЕТ КАРТРИДЖЕЙ!", font_body, PANEL_COLOR, RED, RED)
+            else:
+                cost_total = g.license_cost
+                is_weak = target_console.hardware_power < g.min_power
+                if is_weak:
+                    cost_total *= 2.0
 
-            cost_label = f"Выкупить: ${cost_total:,.0f}"
-            if is_weak:
-                cost_label += " (x2 Слабое!)"
+                cost_label = f"Выкупить: ${cost_total:,.0f}"
+                if is_weak:
+                    cost_label += " (x2 Слабое!)"
 
-            b_color = GREEN if player.cash >= cost_total else RED
-            draw_button(screen, btn_rect, cost_label, font_body, PANEL_COLOR, b_color, TEXT_WHITE)
+                b_color = GREEN if player.cash >= cost_total else RED
+                draw_button(screen, btn_rect, cost_label, font_body, PANEL_COLOR, b_color, TEXT_WHITE)
 
-        offset_y += 95
+            offset_y += 95
+
+    elif sub_tab == "studios":
+        # Студии для эксклюзивных контрактов
+        from config import STUDIO_CONTRACTS
+        offset_y = 145
+        avail_studios = [s for s in STUDIO_CONTRACTS if s["year"] <= current_year]
+
+        if not avail_studios:
+            draw_text(screen, "В этом году новых студий для контрактов нет.", font_large, TEXT_MUTED, 45, 180)
+            return
+
+        draw_text(screen, "ПОДПИСАННЫЕ СТУДИИ-ПАРТНЕРЫ:", font_title, AMBER, 750, 145)
+        sy = 175
+        if not player.signed_studios:
+            draw_text(screen, "Нет активных контрактов", font_body, TEXT_MUTED, 750, sy)
+        for s in player.signed_studios:
+            draw_text(screen, f"- {s['name']} (Роялти: +{s['royalty_bonus'] * 100:.1f}%)", font_body, GREEN, 750, sy)
+            sy += 20
+
+        for s in avail_studios[:5]:  # Вывод доступных на текущий год студий
+            pygame.draw.rect(screen, PANEL_COLOR, (30, offset_y, 700, 85))
+            pygame.draw.rect(screen, BORDER_COLOR, (30, offset_y, 700, 85), 1)
+
+            draw_text(screen, f"{s['name']} (Основана: {s['year']} г.)", font_title, AMBER, 45, offset_y + 10)
+            draw_text(screen, s["desc"], font_body, TEXT_WHITE, 45, offset_y + 35)
+            draw_text(screen, f"Бонус роялти: +{s['royalty_bonus'] * 100:.1f}% | Буст эксклюзивных хитов", font_body,
+                      TEXT_MUTED, 45, offset_y + 60)
+
+            btn_rect = pygame.Rect(540, offset_y + 20, 180, 40)
+            already_signed = any(x["name"] == s["name"] for x in player.signed_studios)
+
+            if already_signed:
+                draw_button(screen, btn_rect, "КОНТРАКТ ПОДПИСАН", font_body, GREEN, GREEN, BG_COLOR)
+            else:
+                b_color = GREEN if player.cash >= s["cost"] else RED
+                draw_button(screen, btn_rect, f"Подписать: ${s['cost']:,}", font_body, PANEL_COLOR, b_color, TEXT_WHITE)
+
+            offset_y += 100

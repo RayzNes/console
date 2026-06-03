@@ -54,6 +54,32 @@ SEASONAL_FACTORS = {
     7: 1.0, 8: 0.9, 9: 1.0, 10: 1.2, 11: 1.5, 12: 1.8
 }
 
+# --- МАРКЕТИНГОВЫЕ КАМПАНИИ ---
+MARKETING_TYPES = {
+    "none": {"name": "Нет рекламы", "cost": 0, "multiplier": 0.0, "desc": "Только сарафанное радио."},
+    "guerrilla": {"name": "Партизанский", "cost": 6_000, "multiplier": 0.8, "desc": "Граффити, слухи, листовки. Дешево и сердито."},
+    "print": {"name": "Пресса (Журналы)", "cost": 35_000, "multiplier": 1.7, "desc": "Рекламные развороты в популярных журналах техники."},
+    "tv": {"name": "Телевидение (ТВ)", "cost": 180_000, "multiplier": 4.5, "desc": "Дорогие прайм-тайм ролики. Максимальный охват."}
+}
+
+# --- ЭКСКЛЮЗИВНЫЕ КОНТРАКТЫ СО СТУДИЯМИ ---
+STUDIO_CONTRACTS = [
+    {"name": "Automated Simulations", "year": 1978, "cost": 60_000, "royalty_bonus": 0.03, "desc": "Пионеры тактических RPG и спортивных игр."},
+    {"name": "Sierra On-Line", "year": 1979, "cost": 90_000, "royalty_bonus": 0.05, "desc": "Мастера графических приключений."},
+    {"name": "Activision", "year": 1979, "cost": 180_000, "royalty_bonus": 0.12, "desc": "Первая независимая студия. Огромный буст продаж."},
+    {"name": "Infocom", "year": 1979, "cost": 70_000, "royalty_bonus": 0.04, "desc": "Короли текстовых квестов и глубоких сюжетов."},
+    {"name": "Sir-Tech", "year": 1980, "cost": 100_000, "royalty_bonus": 0.06, "desc": "Создатели культовой серии Wizardry."},
+    {"name": "Broderbund", "year": 1980, "cost": 95_000, "royalty_bonus": 0.05, "desc": "Разработчики Choplifter и Lode Runner."},
+    {"name": "Imagic", "year": 1981, "cost": 130_000, "royalty_bonus": 0.08, "desc": "Великолепный визуальный ряд от ветеранов Atari."},
+    {"name": "Apollo", "year": 1981, "cost": 45_000, "royalty_bonus": 0.02, "desc": "Доступные аркады для расширения библиотеки."},
+    {"name": "Telesys", "year": 1982, "cost": 55_000, "royalty_bonus": 0.03, "desc": "Экспериментальный и необычный геймплей."},
+    {"name": "Mystique", "year": 1982, "cost": 35_000, "royalty_bonus": 0.02, "desc": "Взрослые скандальные игры. Черный пиар."},
+    {"name": "Electronic Arts", "year": 1982, "cost": 220_000, "royalty_bonus": 0.14, "desc": "Инновационное отношение к авторам как к рок-звездам."},
+    {"name": "MicroProse", "year": 1982, "cost": 120_000, "royalty_bonus": 0.08, "desc": "Военные симуляторы Сида Мейера."},
+    {"name": "Interplay Productions", "year": 1983, "cost": 140_000, "royalty_bonus": 0.09, "desc": "Мастера ролевых миров."},
+    {"name": "Origin Systems", "year": 1983, "cost": 150_000, "royalty_bonus": 0.10, "desc": "Создатели культовой вселенной Ultima."}
+]
+
 # --- ИСТОРИЧЕСКИЙ СПРАВОЧНИК КОМПЛЕКТУЮЩИХ (1972-1983) ---
 HISTORICAL_CPUS = [
     {

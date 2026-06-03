@@ -1,7 +1,7 @@
 # market.py
 
 import math
-from config import INFLATION_FACTORS, SEASONAL_FACTORS, HISTORICAL_EVENTS
+from config import INFLATION_FACTORS, SEASONAL_FACTORS, HISTORICAL_EVENTS, MARKETING_TYPES
 from console import Console
 
 
@@ -64,7 +64,6 @@ class Market:
 
         capacity = int(capacity * capacity_multiplier)
 
-        # Вышедшие на рынок консоли
         active_consoles = []
         for c in self.consoles:
             if c.launch_year < self.current_year:
@@ -90,6 +89,7 @@ class Market:
         no_buy_utility = max(2.0, 10.0 + no_buy_utility_modifier)
 
         for console in active_consoles:
+            # Ценовая война: если текущая цена ниже исходной, повышается ценовая лояльность
             real_price = console.get_real_price(inflation)
             price_factor = math.exp(-0.0075 * real_price)
 
@@ -98,10 +98,13 @@ class Market:
 
             library_factor = math.log1p(console.library_size) * console.library_quality * library_weight_multiplier
 
-            real_marketing = console.get_real_marketing(inflation)
-            marketing_factor = math.log1p(real_marketing / 3000.0)
+            # Динамический маркетинг
+            m_type = getattr(console, "marketing_type", "print")
+            m_info = MARKETING_TYPES.get(m_type, MARKETING_TYPES["none"])
+            real_marketing = m_info["cost"] / inflation
+            marketing_factor = math.log1p((real_marketing * m_info["multiplier"]) / 3000.0)
 
-            utility = (tech_factor * 2.0 + library_factor * 2.5 + marketing_factor * 1.0) * price_factor
+            utility = (tech_factor * 2.0 + library_factor * 2.5 + marketing_factor * 1.5) * price_factor
 
             if console.is_player and player_reputation:
                 utility *= player_reputation.get_market_multiplier()
